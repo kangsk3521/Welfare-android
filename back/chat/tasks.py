@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta
 
+# 키: 대화 저장 키("기기ID:세션ID", auth.thread_key), 값: 마지막 사용 시각
 session_timestamps= {}
 
 TIMEOUT_DAYS= 5

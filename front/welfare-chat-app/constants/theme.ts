@@ -1,53 +1,39 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+import { Platform, TextStyle } from 'react-native';
 
-import { Platform } from 'react-native';
+// 웹에서 입력칸을 선택했을 때 브라우저가 그리는 까만 테두리 끄기 (입력칸 style 배열 끝에 넣어서 사용).
+// 'none'은 웹 전용 값이라 React Native 타입에 없어서 형변환하고, 앱에서는 아무것도 적용하지 않는다.
+export const webNoOutline = Platform.OS === 'web' ? ({ outlineStyle: 'none' } as unknown as TextStyle) : undefined;
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// 앱 화면에서 쓰는 색 (목업 기준). 색약모드는 빨강/초록 대신 파랑/주황 계열(Okabe-Ito)을 쓴다.
+const basePalette = {
+  background: '#F3ECE1',
+  surface: '#FDF9F2',
+  border: '#C4AE8A',
+  text: '#3B2F23',
+  subText: '#8A7A66',
+  chip: '#E8DFCF',
+  onAccent: '#FFFFFF',
+  accent: '#CC8E4C',
+  accentStrong: '#B5753A',
+  recording: '#B5452E',
+  star: '#C0504D',
+  starOff: '#B0ABA3',
+  danger: '#B5452E',
+};
 
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+export const Palettes = {
+  default: basePalette,
+  colorBlind: {
+    ...basePalette,
+    border: '#8FA3B5',
+    chip: '#DCE4EC',
+    subText: '#4F6274',
+    accent: '#0072B2',
+    accentStrong: '#005A8C',
+    recording: '#D55E00',
+    star: '#E69F00',
+    danger: '#D55E00',
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+export type Palette = typeof basePalette;

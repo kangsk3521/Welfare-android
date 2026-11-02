@@ -2,17 +2,28 @@ import os
 from dotenv import load_dotenv
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 import openai
 
 
-from graph import app 
+from graph import app
 from tasks import session_timestamps
+from auth import issue_token, require_device, thread_key, verify_token
 
 
 router = APIRouter()
+
+# 기기 토큰 발급------------------------------------------------
+# 앱이 처음 켜질 때 한 번 호출해서 토큰을 받고, 이후 모든 요청 헤더에 'Authorization: Bearer <토큰>'으로 붙인다.
+class DeviceTokenResponse(BaseModel):
+    device_token: str
+
+@router.post("/auth/device", response_model=DeviceTokenResponse)
+def register_device():
+    return DeviceTokenResponse(device_token=issue_token())
+
 
 # 채팅------------------------------------------------
 
@@ -28,13 +39,16 @@ class ChatResponse(BaseModel):
 
 # 엔드포인트(창구) 만들기
 @router.post("/chat", response_model=ChatResponse)
-def chat_with_bot(request: ChatRequest):
-    print(f"[{request.session_id}] 사용자 질문 수신: {request.user_message}")
-    
-    # LangGraph에 전달할 설정 (어떤 사용자의 대화 기록을 꺼낼지 지정)
-    config = {"configurable": {"thread_id": request.session_id}}
+def chat_with_bot(request: ChatRequest, device_id: str = Depends(require_device)):
+    # 대화 내용은 개인정보(건강·소득 등)가 섞일 수 있어서 로그에는 글자 수만 남긴다
+    print(f"[{request.session_id[:8]}] 사용자 질문 수신 ({len(request.user_message)}자)")
 
-    session_timestamps[request.session_id] = datetime.now()
+    # LangGraph에 전달할 설정 (어떤 사용자의 대화 기록을 꺼낼지 지정)
+    # 키를 "기기ID:세션ID"로 해서, 다른 기기는 같은 세션ID를 보내도 이 대화에 접근할 수 없다
+    thread_id = thread_key(device_id, request.session_id)
+    config = {"configurable": {"thread_id": thread_id}}
+
+    session_timestamps[thread_id] = datetime.now()
 
     # 챗봇(app)에게 질문 던지기 (주방으로 전달)
     result_state = app.invoke(
@@ -50,7 +64,7 @@ def chat_with_bot(request: ChatRequest):
 
 
 
-# 채팅내역 가져오기------------------------------------------------ 토큰 검증 로직 추가해야함
+# 채팅내역 가져오기------------------------------------------------ 기기 토큰으로 본인 대화만 조회
 from typing import List
 import uuid
 
@@ -60,8 +74,8 @@ class MessageHistoryResponse(BaseModel):
     isUser: bool
 
 @router.get("/chat/history/{session_id}", response_model=List[MessageHistoryResponse])
-def get_chat_history(session_id: str):
-    config = {"configurable": {"thread_id": session_id}}
+def get_chat_history(session_id: str, device_id: str = Depends(require_device)):
+    config = {"configurable": {"thread_id": thread_key(device_id, session_id)}}
     
     # LangGraph에서 해당 세션의 전체 상태(대화 기록) 꺼내기
     state = app.get_state(config)
@@ -107,9 +121,15 @@ def add_wav_header(pcm_byte: bytes, sample_rate = 16000, channels=1, bits =16) -
 client = openai.AsyncOpenAI()
 
 @router.websocket("/ws/chat/{session_id}")
-async def websocket_chat_endpoint(websocket: WebSocket, session_id: str):
+async def websocket_chat_endpoint(websocket: WebSocket, session_id: str, token: str | None = None):
+    # 웹소켓은 브라우저에서 헤더를 붙일 수 없어서 주소 뒤 ?token=<토큰> 으로 받는다.
+    # 토큰이 없거나 가짜면 연결을 받지 않는다 (음성 인식은 유료 API라 아무나 쓰지 못하게)
+    if verify_token(token) is None:
+        await websocket.close(code=1008)  # 1008: 정책 위반
+        return
+
     await websocket.accept()
-    print(f"{session_id} 웹소켓 연결")
+    print(f"[{session_id[:8]}] 웹소켓 연결")
 
     audio_buffer = io.BytesIO() # 오디오 데이터 버퍼
 
@@ -137,19 +157,20 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str):
                         )
 
                         user_message = transcript.text
-                        print(f"{session_id} 음성 인식 결과: {user_message}")
+                        print(f"[{session_id[:8]}] 음성 인식 완료 ({len(user_message)}자)")
 
                         audio_buffer = io.BytesIO()
 
                         await websocket.send_json({"recognized_text": user_message})
 
     except WebSocketDisconnect:
-        print(f"[{session_id}] WebSocket 연결 종료됨")
+        print(f"[{session_id[:8]}] WebSocket 연결 종료됨")
     except Exception as e:
-        print(f"[{session_id}] WebSocket 오류 발생: {e}")
+        print(f"[{session_id[:8]}] WebSocket 오류 발생: {e}")
+        # 서버 내부 오류 내용은 앱에 그대로 보내지 않는다
         await websocket.send_json({
-            "status": "error", 
-            "message": str(e)
+            "status": "error",
+            "message": "음성 인식 중 오류가 발생했습니다"
         })
 
     
@@ -159,7 +180,7 @@ async def websocket_chat_endpoint(websocket: WebSocket, session_id: str):
 
 
 @router.post("/File")
-async def transcribe_file(audio_file: UploadFile = File(...)):
+async def transcribe_file(audio_file: UploadFile = File(...), device_id: str = Depends(require_device)):
     
     transcript = await client.audio.transcriptions.create(
         model="whisper-1",
