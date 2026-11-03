@@ -1,33 +1,26 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as Crypto from 'expo-crypto';
 
 import { Palette, Palettes } from '@/constants/theme';
 import { loadJSON, saveJSON } from '@/utils/storage';
 
-// 설정 화면에서 바꾸는 값들: 글자크기, 색약모드, 사용자 기본 정보.
-// 바꿀 때마다 폰에 저장해서 앱을 다시 켜도 유지된다.
+// 화면 설정: 글자크기, 색약모드. 바꿀 때마다 폰에 저장해서 앱을 다시 켜도 유지된다.
+// (사용자 기본 정보는 개인정보라 contexts/profile-context.tsx에서 암호화 저장소로 따로 관리)
 
 const STORAGE_KEY = '@app_settings';
 
 export const FONT_SIZE_MIN = 12;
 export const FONT_SIZE_MAX = 28;
 
-export type ProfileItem = { id: string; label: string; value: string };
-
 type Settings = {
   fontSize: number;
   colorBlind: boolean;
-  profile: ProfileItem[];
 };
 
-const DEFAULT_SETTINGS: Settings = { fontSize: 15, colorBlind: false, profile: [] };
+const DEFAULT_SETTINGS: Settings = { fontSize: 15, colorBlind: false };
 
 type SettingsContextType = Settings & {
   setFontSize: (size: number) => void;
   setColorBlind: (on: boolean) => void;
-  addProfile: (label: string, value: string) => void;
-  updateProfile: (id: string, label: string, value: string) => void;
-  removeProfile: (id: string) => void;
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -39,7 +32,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadJSON<Partial<Settings>>(STORAGE_KEY)
       .then((saved) => {
-        if (saved) setSettings({ ...DEFAULT_SETTINGS, ...saved });
+        // 필요한 값만 꺼낸다. 예전 버전이 같은 곳에 평문으로 저장하던 사용자 메모(profile)는
+        // 여기서 버려지고, 다음 저장 때 저장소에서도 사라진다.
+        if (saved) {
+          setSettings({
+            fontSize: saved.fontSize ?? DEFAULT_SETTINGS.fontSize,
+            colorBlind: saved.colorBlind ?? DEFAULT_SETTINGS.colorBlind,
+          });
+        }
       })
       .catch((e) => console.error('설정 불러오기 실패', e))
       .finally(() => setLoaded(true));
@@ -55,14 +55,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setFontSize: (size) =>
       setSettings((s) => ({ ...s, fontSize: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, size)) })),
     setColorBlind: (on) => setSettings((s) => ({ ...s, colorBlind: on })),
-    addProfile: (label, value) =>
-      setSettings((s) => ({ ...s, profile: [...s.profile, { id: Crypto.randomUUID(), label, value }] })),
-    updateProfile: (id, label, value) =>
-      setSettings((s) => ({
-        ...s,
-        profile: s.profile.map((p) => (p.id === id ? { ...p, label, value } : p)),
-      })),
-    removeProfile: (id) => setSettings((s) => ({ ...s, profile: s.profile.filter((p) => p.id !== id) })),
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

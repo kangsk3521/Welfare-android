@@ -5,7 +5,9 @@ import { useCallback, useState } from 'react';
 import 'react-native-reanimated';
 
 import { IntroScreen } from '@/components/intro-screen';
+import { OnboardingScreen } from '@/components/onboarding-screen';
 import { CardsProvider } from '@/contexts/cards-context';
+import { ProfileProvider, useProfile } from '@/contexts/profile-context';
 import { SessionsProvider } from '@/contexts/sessions-context';
 import { SettingsProvider } from '@/contexts/settings-context';
 
@@ -21,17 +23,27 @@ export default function RootLayout() {
 
   return (
     <SettingsProvider>
-      <SessionsProvider>
-        <CardsProvider>
-          <ThemeProvider value={DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            </Stack>
-            {showIntro && <IntroScreen onFinish={finishIntro} />}
-            <StatusBar style="dark" />
-          </ThemeProvider>
-        </CardsProvider>
-      </SessionsProvider>
+      <ProfileProvider>
+        <SessionsProvider>
+          <CardsProvider>
+            <ThemeProvider value={DefaultTheme}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              </Stack>
+              {/* 겹치는 순서(아래→위): 대화창 → 첫 실행 안내 → 오프닝 */}
+              <FirstRunGuide />
+              {showIntro && <IntroScreen onFinish={finishIntro} />}
+              <StatusBar style="dark" />
+            </ThemeProvider>
+          </CardsProvider>
+        </SessionsProvider>
+      </ProfileProvider>
     </SettingsProvider>
   );
+}
+
+// 저장소를 다 읽은 뒤, 아직 첫 실행 안내를 안 봤을 때만 보여준다
+function FirstRunGuide() {
+  const { loaded, onboarded } = useProfile();
+  return loaded && !onboarded ? <OnboardingScreen /> : null;
 }

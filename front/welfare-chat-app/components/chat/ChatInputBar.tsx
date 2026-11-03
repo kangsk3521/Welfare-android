@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { Palette, webNoOutline } from '@/constants/theme';
@@ -54,6 +54,13 @@ export function ChatInputBar({
     },
     []
   );
+
+  // 안드로이드 뒤로가기는 키보드만 내리고 입력칸 선택은 그대로 남긴다 → 공유·마이크 버튼이 안 돌아옴.
+  // 키보드가 내려가면 입력칸 선택도 풀어서 원래 화면으로 돌아가게 한다.
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => inputRef.current?.blur());
+    return () => sub.remove();
+  }, []);
 
   // ----- 입력칸 높이: 한 줄에서 시작해 글자 수만큼 늘어나고, 최대 줄 수를 넘으면 칸 안에서 스크롤
   const inputFontSize = fontSize + 2;

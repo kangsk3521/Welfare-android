@@ -337,7 +337,8 @@ def execute_detail_search_node(state: AgentState):
     
     # 예외처리: 추천해 둔 ID가 없을 때
     if not all_ids:
-        return {"search_results": "이전에 추천해 드린 정책 목록이 없어 상세 정보를 가져올 수 없습니다. 다시 검색해 주세요."}
+        return {"search_results": "이전에 추천해 드린 정책 목록이 없어 상세 정보를 가져올 수 없습니다. 다시 검색해 주세요.",
+                "current_cards": []}
     
     matched_ids = []
 
@@ -357,37 +358,37 @@ def execute_detail_search_node(state: AgentState):
         matched_ids.append(curr_ids[0])
         print("오류: 매치되는 정책없음")
     
+    # 정책 1개당 한 줄로 가져온다 (카드를 만들 수 있게 담당부처·제공유형·요약도 함께)
     cypher_query = """
     MATCH (p:Policy) WHERE p.servId IN $target_ids
-    MATCH (p)-[:HAS_INFO]->(c:Chunk)
-    RETURN p.servId AS id, p.servNm AS title, c.type AS type, c.content AS content
+    RETURN p.servId AS id, p.servNm AS title, p.servDgst AS digest,
+           [(p)-[:MANAGED_BY]->(d:Department) | d.name][0] AS department,
+           [(p)-[:PROVIDES]->(s:SupportType) | s.name][0] AS support_type,
+           [(p)-[:HAS_INFO]->(c:Chunk) | {type: c.type, content: c.content}] AS all_chunks
     """
-    
+
     records = graph.query(cypher_query, params={"target_ids": matched_ids})
-    
+
     if not records:
-        return {"search_results": "해당 정책의 상세 정보를 찾을 수 없습니다."}
+        return {"search_results": "해당 정책의 상세 정보를 찾을 수 없습니다.", "current_cards": []}
 
-    details_by_policy = {}
-    for r in records:
-        pid = r['id']
-        if pid not in details_by_policy:
-            details_by_policy[pid] = {"title": r['title'], "chunks": []}
-        details_by_policy[pid]["chunks"].append(f"■ {r['type']}\n{r['content']}")
+    # 사용자가 말한 순서대로 (같은 정책이 여러 번 매칭돼도 한 번만)
+    order = {pid: i for i, pid in reversed(list(enumerate(matched_ids)))}
+    records = sorted(records, key=lambda r: order.get(r["id"], len(order)))
 
-    print(f"[detail] targets={targets}, matched_ids={matched_ids}, 가져온 정책={[d['title'] for d in details_by_policy.values()]}")
-    
-    # 상세 정보 텍스트 가공
+    print(f"[detail] targets={targets}, matched_ids={matched_ids}, 가져온 정책={[r['title'] for r in records]}")
+
+    # 상세 정보 텍스트 가공 (AI 답변용)
     result_texts = []
-    for pid, data in details_by_policy.items():
-        text = f"[{data['title']}] 상세 정보\n\n" + "\n\n".join(data['chunks']) + "\n" + "="*40
+    for r in records:
+        chunks = [f"■ {c['type']}\n{c['content']}" for c in (r["all_chunks"] or [])]
+        text = f"[{r['title']}] 상세 정보\n\n" + "\n\n".join(chunks) + "\n" + "="*40
         result_texts.append(text)
-        
-  
+
     return {
         "search_results": "\n\n".join(result_texts),
-        "detail_titles": [d["title"] for d in details_by_policy.values()],
-        "current_cards": [],  # 상세 설명은 카드가 아니라 글로 답한다
+        "detail_titles": [r["title"] for r in records],
+        "current_cards": [build_policy_card(r) for r in records],  # 상세 답변에도 해당 정책 카드를 붙인다
     }
 
 
@@ -397,13 +398,22 @@ def execute_detail_search_node(state: AgentState):
 
 CARD_FALLBACK_INTRO = "말씀하신 상황에 맞는 복지 혜택을 찾았어요. 카드를 눌러 자세히 확인해 보세요."
 
+
+def _plain_text(text: str) -> str:
+    """앱 말풍선은 마크다운을 그리지 않아 기호가 그대로 보인다 → 굵게(**), 제목(###), 구분선(---)만 지운다.
+    (목록 기호 '- '와 줄바꿈은 글로 읽어도 자연스러워서 그대로 둔다)"""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"^\s*#{1,6}\s*", "", text, flags=re.M)
+    text = re.sub(r"^[ \t]*-{3,}[ \t]*$", "", text, flags=re.M)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
 def _card_answer(messages, search_results, cards):
     """카드형 답변 메시지를 만든다.
     카드 데이터는 메시지의 additional_kwargs["policy_cards"]에 담는다 → /chat 응답과 대화 기록(history)에 함께 실린다."""
     intro, picks = CARD_FALLBACK_INTRO, list(range(1, len(cards) + 1))
     try:
         result = card_intro_chain.invoke({"search_results": search_results, "messages": messages})
-        intro = (result.intro or "").strip() or intro
+        intro = _plain_text(result.intro or "") or intro
         # 범위 밖 번호·중복 제거, 순위 순서 유지
         picks = sorted({p for p in result.picks if 1 <= p <= len(cards)})
     except Exception as e:
@@ -443,7 +453,11 @@ def generate_answer_node(state: AgentState):
         return _card_answer(messages, search_results, cards)
 
     if intent == "상세요구":
-        guide = "사용자가 선택한 정책의 [상세 정보]를 제공 중입니다. 정보를 누락하지 말고 상세하고 친절하게 정리해 주세요."
+        # 정책 전체 내용은 앱 카드(누르면 확대)로 함께 보여주므로, AI 글은 물어본 내용 중심으로 짧게
+        guide = ("사용자가 선택한 정책의 [상세 정보]를 제공 중입니다. 정책의 전체 내용(지원대상·지원내용·신청방법)은 "
+                 "답변 아래에 카드로 함께 보여지므로 모두 옮겨 적지 마세요. 사용자가 물은 것(예: 신청 방법, 대상 여부)에 대한 답을 "
+                 "중심으로 3~6문장으로 간결하게 설명하고, 마지막에 '카드를 누르면 전체 내용을 볼 수 있어요'라고 안내하세요. "
+                 "마크다운 기호(**, ###, ---)와 표는 쓰지 마세요.")
     else:
         guide = ("여러 정책의 [목록과 요약]을 제공 중입니다. 사용자가 신청 방법, 지원 대상, 지원 내용 등 특정 정보를 물었다면 "
                  "그 정보를 먼저 답하세요. 요약하여 소개한 뒤 '더 자세히 알고 싶은 정책이 있다면 번호나 이름을 말씀해 주세요'라고 유도하세요.")
@@ -491,6 +505,10 @@ def generate_answer_node(state: AgentState):
                     "recommendation_history": [names]}
         return {"messages": [response],
                 "recommendation_history": [state.get("current_recommended_names", [])]}
+
+    # 상세 답변: 물어본 정책 카드를 답변에 붙인다 (목록 답변처럼 /chat 응답·대화 기록에 함께 실림)
+    if cards:
+        response = AIMessage(content=_plain_text(response.content), additional_kwargs={"policy_cards": cards})
     return {"messages": [response]}
     
 

@@ -46,11 +46,22 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
     if (send(text)) setInputText('');
   };
 
-  // 키보드가 뜨거나, 입력칸 선택이 바뀌어 아래 여백(마이크 자리)이 달라지면 최신 메시지가 보이게 맨 아래로
+  // 최신 메시지가 보이게 맨 아래로 내리는 때:
+  // - 새 메시지가 생기거나 '답변 작성 중'이 바뀔 때
+  // - 키보드가 뜨거나, 입력칸 선택이 바뀌어 아래 여백(마이크 자리)이 달라질 때
+  // 카드·여백은 여러 번에 나눠 그려지며 높이가 늘어나서, 한 번이 아니라 시간을 두고 세 번 내린다.
+  // 카드를 거절·다시 보기 해서 높이만 바뀔 때는 내리지 않는다 → 보던 자리 유지.
   useEffect(() => {
-    const timer = setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
-    return () => clearTimeout(timer);
-  }, [keyboardHeight, isInputFocused]);
+    // FlatList.scrollToEnd는 자기가 계산해 둔 높이를 써서, 아래 여백이 막 바뀐 직후엔 덜 내려간다.
+    // 실제 스크롤 영역(ScrollView)에 직접 요청하면 지금 높이 기준으로 끝까지 내려간다.
+    const scrollToBottom = () => {
+      const scrollView = listRef.current?.getScrollResponder() as unknown as { scrollToEnd?: (o: { animated: boolean }) => void } | null;
+      if (scrollView?.scrollToEnd) scrollView.scrollToEnd({ animated: true });
+      else listRef.current?.scrollToEnd({ animated: true });
+    };
+    const timers = [50, 300, 700].map((ms) => setTimeout(scrollToBottom, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [messages.length, isSending, keyboardHeight, isInputFocused]);
 
   return (
     // 키보드 높이만큼 아래 여백 → 입력칸이 키보드 위로 올라온다
@@ -71,7 +82,6 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
           ListFooterComponent={isSending ? <TypingBubble /> : null}
           // 마이크 버튼이 떠 있을 땐 그만큼 아래 여백을 둬서 마지막 말풍선이 버튼 위까지 스크롤되게 한다
           contentContainerStyle={[styles.listContent, { paddingBottom: isInputFocused ? 12 : MIC_SPACE }]}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         />
         <MicButton
           visible={!isInputFocused}
