@@ -60,6 +60,15 @@ class ConditionExtraction(BaseModel):
     theme_remove: List[Literal["신체건강", "정신건강", "생활지원", "주거", "일자리", "문화·여가", "안전·위기", "임신·출산", "보육", "교육", "입양·위탁", "보호·돌봄", "서민금융", "법률", "에너지"]] = Field(default_factory=list)
     
 
+# 카드형 답변: AI가 카드 위에 붙일 짧은 소개 + 보여줄 정책 고르기
+class CardIntro(BaseModel):
+    intro: str = Field(description="카드 위에 보여줄 1~3문장 소개. 정책 이름·세부 내용을 나열하지 말 것")
+    picks: List[int] = Field(
+        default_factory=list,
+        description="사용자 상황에 맞아 카드로 보여줄 정책의 [검색 데이터] 순위 번호(1부터). 순위 순서 그대로",
+    )
+
+
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add] # Annotated와 operator.add를 사용하면, 이전 대화 기록에 새 메시지가 계속 누적(append)됩니다.
     current_query: str
@@ -84,5 +93,8 @@ class AgentState(TypedDict):
     current_recommended_names: List[str]
 
     recommendation_history: Annotated[List[List[str]], operator.add]
+
+    # 이번 검색 결과를 앱 카드용으로 정리한 것 (id, title, target, content, apply_method, department, support_type, digest)
+    current_cards: List[dict]
 
 

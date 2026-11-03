@@ -93,7 +93,7 @@ export function ChatInputBar({
       <Animated.View style={styles.pillWrap} layout={LinearTransition.duration(200)}>
         {/* 칸 어디를 눌러도 입력이 시작되게 */}
         <Pressable style={styles.pill} onPress={() => inputRef.current?.focus()} accessible={false}>
-          <MaterialIcons name="add" size={30} color={theme.subText} />
+          <MaterialIcons name="add" size={27} color={theme.subText} />
           <TextInput
             ref={inputRef}
             multiline
@@ -121,7 +121,7 @@ export function ChatInputBar({
           disabled={isSending}
           accessibilityRole="button"
           accessibilityLabel="보내기">
-          <MaterialIcons name="send" size={28} color={theme.onAccent} style={{ transform: [{ rotate: '-30deg' }] }} />
+          <MaterialIcons name="send" size={25} color={theme.onAccent} style={{ transform: [{ rotate: '-30deg' }] }} />
         </Pressable>
       </Animated.View>
 
@@ -153,10 +153,10 @@ const makeStyles = (t: Palette) =>
       backgroundColor: t.surface,
       borderColor: t.border,
       borderWidth: 2,
-      borderRadius: 29,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      minHeight: 58, // 한 줄일 땐 전송 버튼과 같은 높이, 여러 줄이면 늘어남
+      borderRadius: 26,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      minHeight: 52, // 한 줄일 땐 전송 버튼과 같은 높이, 여러 줄이면 늘어남
       gap: 8,
     },
     input: {
@@ -169,18 +169,18 @@ const makeStyles = (t: Palette) =>
     },
     sendButton: {
       backgroundColor: t.accent,
-      width: 58,
-      height: 58,
-      borderRadius: 29,
+      width: 52,
+      height: 52,
+      borderRadius: 26,
       justifyContent: 'center',
       alignItems: 'center',
     },
     shareButton: {
       backgroundColor: t.accentStrong,
-      height: 58,
-      paddingHorizontal: 20,
-      borderRadius: 32,
+      height: 52,
+      paddingHorizontal: 18,
+      borderRadius: 26,
       justifyContent: 'center',
     },
-    shareText: { color: t.onAccent, fontSize: 18, fontWeight: '700' },
+    shareText: { color: t.onAccent, fontSize: 17, fontWeight: '700' },
   });

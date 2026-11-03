@@ -37,7 +37,7 @@ export function useChat(sessionId: string) {
     setIsSending(true);
 
     sendChatMessage(sessionId, text)
-      .then((reply) => addMessage({ text: reply, isUser: false }, 'b'))
+      .then(({ reply, cards }) => addMessage({ text: reply, isUser: false, cards }, 'b'))
       .catch((error) => {
         console.error('챗봇 응답 실패:', error);
         addMessage({ text: SEND_FAILED_TEXT, isUser: false, isError: true }, 'e');

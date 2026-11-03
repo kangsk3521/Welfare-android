@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
+import { PolicyDetailModal } from '@/components/cards/PolicyDetailModal';
+import { CardsAnswer } from '@/components/chat/CardsAnswer';
 import { ChatInputBar } from '@/components/chat/ChatInputBar';
 import { ChatIntro } from '@/components/chat/ChatIntro';
 import { MessageBubble, TypingBubble } from '@/components/chat/MessageBubble';
@@ -10,13 +12,14 @@ import { useTheme } from '@/contexts/settings-context';
 import { useChat } from '@/hooks/useChat';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
-import { Message } from '@/types/chat';
+import { Message, PolicyCard } from '@/types/chat';
 import { shareMessages } from '@/utils/share';
 
 // 대화창 화면. 기능은 hooks/, 화면 조각은 components/chat/ 에 있고 여기서는 조립만 한다.
 //
 //   ┌ ChatIntro (안내 + 추천칩) ┐
 //   │ MessageBubble ...         │  ← FlatList
+//   │ CardsAnswer (소개 + 정책 카드들) │  카드를 누르면 PolicyDetailModal (블러 + 확대)
 //   │        MicButton (떠 있음) │
 //   └ ChatInputBar (입력·전송·공유)┘
 
@@ -33,6 +36,7 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
 
   const [inputText, setInputText] = useState('');
   const [isInputFocused, setIsInputFocused] = useState(false); // 선택 중엔 마이크·공유 버튼 숨김
+  const [openedCard, setOpenedCard] = useState<PolicyCard | null>(null); // 확대해서 보고 있는 카드
   const keyboardHeight = useKeyboardHeight();
 
   const { messages, isSending, send } = useChat(sessionId);
@@ -55,7 +59,13 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
         <FlatList
           ref={listRef}
           data={messages}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item }) =>
+            item.cards?.length ? (
+              <CardsAnswer message={item} sessionId={sessionId} onOpen={setOpenedCard} />
+            ) : (
+              <MessageBubble message={item} />
+            )
+          }
           keyExtractor={(item) => item.id}
           ListHeaderComponent={<ChatIntro showSuggestions={messages.length === 0} onPick={sendText} />}
           ListFooterComponent={isSending ? <TypingBubble /> : null}
@@ -79,6 +89,8 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
         onShare={() => shareMessages(messages)}
         onFocusChange={setIsInputFocused}
       />
+
+      <PolicyDetailModal card={openedCard} onClose={() => setOpenedCard(null)} />
     </View>
   );
 }

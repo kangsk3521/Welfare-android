@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 from datetime import datetime
+from typing import List
 from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
@@ -32,9 +33,27 @@ class ChatRequest(BaseModel):
     session_id: str          # 사용자 구분용 ID (단톡방 번호 같은 역할)
     user_message: str        # 사용자가 입력한 질문
 
+# 정책 카드 1장 (앱에서 카드로 표시. 내용은 DB 원문)
+class PolicyCard(BaseModel):
+    id: str                  # 정책 ID (servId)
+    title: str               # 정책명
+    target: str = ""         # 지원대상
+    content: str = ""        # 지원내용 (지자체 정책은 요약)
+    apply_method: str = ""   # 신청방법
+    department: str = ""     # 담당부처
+    support_type: str = ""   # 제공유형 (현금, 바우처 등)
+    digest: str = ""         # 한 줄 요약
+
 # 손님에게 줄 영수증(Response) 양식 정의
 class ChatResponse(BaseModel):
-    bot_reply: str           # 챗봇의 답변
+    bot_reply: str           # 챗봇의 답변 (카드가 있으면 카드 위에 보여줄 짧은 소개)
+    cards: List[PolicyCard] = []  # 추천 정책 카드. 되묻기·일상대화·상세설명 답변이면 빈 목록
+
+
+def message_cards(msg) -> List[PolicyCard]:
+    """답변 메시지에 붙어 있는 정책 카드 꺼내기 (nodes._card_answer가 additional_kwargs에 담음)"""
+    raw = getattr(msg, "additional_kwargs", {}).get("policy_cards") or []
+    return [PolicyCard(**c) for c in raw]
 
 
 # 엔드포인트(창구) 만들기
@@ -57,21 +76,21 @@ def chat_with_bot(request: ChatRequest, device_id: str = Depends(require_device)
     )
     
     # 챗봇이 만들어낸 마지막 답변 꺼내기
-    final_message = result_state["messages"][-1].content
-    
+    final_message = result_state["messages"][-1]
+
     # 포장해서(Response 형식) 손님에게 반환
-    return ChatResponse(bot_reply=final_message)
+    return ChatResponse(bot_reply=final_message.content, cards=message_cards(final_message))
 
 
 
 # 채팅내역 가져오기------------------------------------------------ 기기 토큰으로 본인 대화만 조회
-from typing import List
 import uuid
 
 class MessageHistoryResponse(BaseModel):
     id: str
     text: str
     isUser: bool
+    cards: List[PolicyCard] = []
 
 @router.get("/chat/history/{session_id}", response_model=List[MessageHistoryResponse])
 def get_chat_history(session_id: str, device_id: str = Depends(require_device)):
@@ -90,7 +109,8 @@ def get_chat_history(session_id: str, device_id: str = Depends(require_device)):
         history.append(MessageHistoryResponse(
             id=msg.id if hasattr(msg, 'id') and msg.id else str(uuid.uuid4()),
             text=msg.content,
-            isUser=msg.type == "human" # human이면 True(내 메시지), ai면 False(챗봇)
+            isUser=msg.type == "human", # human이면 True(내 메시지), ai면 False(챗봇)
+            cards=message_cards(msg),
         ))
         
     return history

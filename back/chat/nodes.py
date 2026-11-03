@@ -7,11 +7,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_upstage import ChatUpstage
 from langchain_upstage.embeddings import UpstageEmbeddings
 
-from state import AgentState, IntentClassification, ConditionExtraction, TargetResolution
+from state import AgentState, IntentClassification, ConditionExtraction, TargetResolution, CardIntro
 from prompts import (
-    INTENT_SYSTEM_PROMPT, 
+    INTENT_SYSTEM_PROMPT,
     RESOLVE_SYSTEM_PROMPT,
-    ANSWER_SYSTEM_PROMPT, 
+    ANSWER_SYSTEM_PROMPT,
+    CARD_INTRO_PROMPT,
     EXTRACT_SYSTEM_PROMPT,
     GENERAL_CHAT_PROMPT, 
     ASK_DETAILS_PROMPT,
@@ -62,6 +63,37 @@ extract_prompt = ChatPromptTemplate.from_messages([
     ("placeholder", "{messages}")
 ])
 extract_chain = extract_prompt | llm.with_structured_output(ConditionExtraction)
+
+# 카드형 답변 체인: 짧은 소개 + 보여줄 정책 번호 고르기
+card_intro_prompt = ChatPromptTemplate.from_messages([
+    ("system", CARD_INTRO_PROMPT),
+    MessagesPlaceholder(variable_name="messages")
+])
+card_intro_chain = card_intro_prompt | llm.with_structured_output(CardIntro)
+
+
+# DB 청크 내용은 "[정책명: OO] 지원대상: 내용..." 형태라 앞의 머리말을 떼고 내용만 남긴다
+_CHUNK_PREFIX = re.compile(r"^\[정책명:.*?\]\s*[^:]{1,10}:\s*")
+
+def _chunk_text(content: str | None) -> str:
+    return _CHUNK_PREFIX.sub("", (content or "").strip(), count=1)
+
+
+def build_policy_card(record: dict) -> dict:
+    """검색된 정책 1개를 앱 카드용 데이터로 정리한다.
+    중앙부처 정책은 지원대상·서비스내용·신청방법 청크가 있고, 지자체 정책은 요약만 있다."""
+    chunks = {c["type"]: _chunk_text(c["content"]) for c in (record.get("all_chunks") or []) if c.get("type")}
+    digest = (record.get("digest") or "").strip()
+    return {
+        "id": record["id"],
+        "title": record["title"],
+        "target": chunks.get("지원대상", ""),
+        "content": chunks.get("서비스내용") or chunks.get("요약") or digest,
+        "apply_method": chunks.get("신청방법", ""),
+        "department": record.get("department") or "",
+        "support_type": record.get("support_type") or "",
+        "digest": digest,
+    }
 
 
 def classify_intent_node(state: AgentState):
@@ -235,7 +267,8 @@ def execute_search_node(state: AgentState):
            max_score AS score, hits,
            [(p)-[:TARGETS_AGE]->(l:LifeCycle) | l.name] AS life_cycles,
            [(p)-[:TARGETS_GROUP]->(t:TargetGroup) | t.name] AS target_groups,
-           [(p)-[:RELATES_TO]->(th:Theme) | th.name] AS themes
+           [(p)-[:RELATES_TO]->(th:Theme) | th.name] AS themes,
+           [(p)-[:HAS_INFO]->(ac:Chunk) | {type: ac.type, content: ac.content}] AS all_chunks
     """
     records = graph.query(cypher_vec, params={
         "k": VEC_TOP_K,
@@ -288,6 +321,7 @@ def execute_search_node(state: AgentState):
         "current_recommended_ids": rec_ids,
         "current_recommended_names": rec_names,
         "ask_count": 0,
+        "current_cards": [build_policy_card(r) for r in records],  # 검색 순위 순서
     }
 
 
@@ -353,12 +387,42 @@ def execute_detail_search_node(state: AgentState):
     return {
         "search_results": "\n\n".join(result_texts),
         "detail_titles": [d["title"] for d in details_by_policy.values()],
+        "current_cards": [],  # 상세 설명은 카드가 아니라 글로 답한다
     }
 
 
 
 # --------------------------------------------
 # 답변생성
+
+CARD_FALLBACK_INTRO = "말씀하신 상황에 맞는 복지 혜택을 찾았어요. 카드를 눌러 자세히 확인해 보세요."
+
+def _card_answer(messages, search_results, cards):
+    """카드형 답변 메시지를 만든다.
+    카드 데이터는 메시지의 additional_kwargs["policy_cards"]에 담는다 → /chat 응답과 대화 기록(history)에 함께 실린다."""
+    intro, picks = CARD_FALLBACK_INTRO, list(range(1, len(cards) + 1))
+    try:
+        result = card_intro_chain.invoke({"search_results": search_results, "messages": messages})
+        intro = (result.intro or "").strip() or intro
+        # 범위 밖 번호·중복 제거, 순위 순서 유지
+        picks = sorted({p for p in result.picks if 1 <= p <= len(cards)})
+    except Exception as e:
+        print(f"카드 소개 생성 실패, 기본값 사용: {e}")
+
+    shown = [cards[p - 1] for p in picks]
+    print(f"카드 {len(shown)}개 표시: {[c['title'] for c in shown]}")
+
+    response = AIMessage(content=intro, additional_kwargs={"policy_cards": shown})
+    names = [c["title"] for c in shown]
+    return {
+        "messages": [response],
+        # "2번 자세히 알려줘"처럼 번호로 물을 때 화면의 카드 순서와 맞도록 갱신
+        "current_recommended_ids": [c["id"] for c in shown],
+        "current_recommended_names": names,
+        "recommendation_history": [names],
+    }
+
+
 def generate_answer_node(state: AgentState):
     print("답변 생성")
     
@@ -372,7 +436,12 @@ def generate_answer_node(state: AgentState):
         return {"messages": [AIMessage(content=msg)], "recommendation_history": [[]]}
     if search_results.startswith(("이전에 추천해", "해당 정책의 상세 정보")):
         return {"messages": [AIMessage(content=search_results)]}
-    
+
+    # 카드형 답변: 정책 목록을 보여주는 턴이면 정책 내용은 앱 카드로 보여주고, AI는 짧은 소개와 보여줄 정책만 고른다
+    cards = state.get("current_cards") or []
+    if intent != "상세요구" and cards:
+        return _card_answer(messages, search_results, cards)
+
     if intent == "상세요구":
         guide = "사용자가 선택한 정책의 [상세 정보]를 제공 중입니다. 정보를 누락하지 말고 상세하고 친절하게 정리해 주세요."
     else:
