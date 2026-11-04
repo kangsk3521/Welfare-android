@@ -94,7 +94,7 @@ function Section({
 
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(59, 47, 35, 0.18)' },
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: t.overlay },
     // 카드 밖(흐린 부분) 터치는 뒤의 backdrop으로 통과 → 닫힘
     center: { ...StyleSheet.absoluteFill, justifyContent: 'center', alignItems: 'center', padding: 18, pointerEvents: 'box-none' },
     sheet: {
@@ -107,7 +107,7 @@ const makeStyles = (t: Palette) =>
       borderRadius: 22,
       overflow: 'hidden',
       // 떠 있는 느낌의 그림자
-      shadowColor: '#000',
+      shadowColor: t.shadow,
       shadowOpacity: 0.18,
       shadowRadius: 18,
       shadowOffset: { width: 0, height: 8 },

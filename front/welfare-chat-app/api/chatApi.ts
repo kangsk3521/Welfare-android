@@ -3,6 +3,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { getDeviceToken, resetDeviceToken } from '@/api/auth';
 import { API_URL } from '@/constants/config';
 import { Message, PolicyCard } from '@/types/chat';
+import { ProfilePayload } from '@/types/profile';
 
 // Render 무료 서버는 한동안 안 쓰면 잠들어서 첫 요청이 오래 걸린다 → 넉넉히 90초
 const client = axios.create({ baseURL: API_URL, timeout: 90_000 });
@@ -73,46 +74,26 @@ export const get_chat_history = async (sessionId: string): Promise<Message[]> =>
 interface ChatRequest {
   session_id: string;
   user_message: string;
+  profile?: ProfilePayload; // 폰에 저장된 내 기본 정보 (있을 때만)
 }
 interface ChatResponse {
   bot_reply: string; // 카드가 있으면 카드 위에 보여줄 짧은 소개
   cards?: PolicyCardResponse[]; // 추천 정책 카드 (검색 답변일 때만)
+  detected?: string[]; // 대화에서 새로 알게 된 정보 (내 정보에 아직 없는 것)
 }
 
 export const sendChatMessage = async (
   sessionId: string,
-  userMessage: string
-): Promise<{ reply: string; cards: PolicyCard[] }> => {
-  const requestData: ChatRequest = { session_id: sessionId, user_message: userMessage };
+  userMessage: string,
+  profile: ProfilePayload | null
+): Promise<{ reply: string; cards: PolicyCard[]; detected: string[] }> => {
+  const requestData: ChatRequest = { session_id: sessionId, user_message: userMessage, ...(profile ? { profile } : {}) };
   const response = await client.post<ChatResponse>('/chat', requestData);
-  return { reply: response.data.bot_reply, cards: (response.data.cards ?? []).map(toPolicyCard) };
+  return {
+    reply: response.data.bot_reply,
+    cards: (response.data.cards ?? []).map(toPolicyCard),
+    detected: response.data.detected ?? [],
+  };
 };
 
-// ---------------------------서버확인
-
-export const healthCheck = async (): Promise<boolean> => {
-  try {
-    const response = await client.get('/Health');
-    return response.status === 200;
-  } catch (error) {
-    console.error('서버 연결 실패', error);
-    return false;
-  }
-};
-
-// ---------------------------음성 파일 → 글자 (서버 엔드포인트: POST /File)
-
-export interface AudioFile {
-  uri: string;
-  name: string;
-  type: string;
-}
-
-export const transcribe = async (audioData: AudioFile): Promise<string> => {
-  const formData = new FormData();
-  formData.append('audio_file', { uri: audioData.uri, name: audioData.name, type: audioData.type } as any);
-  const response = await client.post('/File', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data.recognized_text;
-};
+// 음성 인식은 웹소켓으로 한다 (hooks/useVoiceRecorder.ts)

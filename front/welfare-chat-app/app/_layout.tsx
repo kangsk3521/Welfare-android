@@ -4,15 +4,16 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useState } from 'react';
 import 'react-native-reanimated';
 
-import { IntroScreen } from '@/components/intro-screen';
-import { OnboardingScreen } from '@/components/onboarding-screen';
+import { IntroScreen } from '@/components/start/IntroScreen';
+import { OnboardingScreen } from '@/components/start/OnboardingScreen';
 import { CardsProvider } from '@/contexts/cards-context';
 import { ProfileProvider, useProfile } from '@/contexts/profile-context';
 import { SessionsProvider } from '@/contexts/sessions-context';
 import { SettingsProvider } from '@/contexts/settings-context';
 
+// expo-router 설정: 앱의 기본 화면 묶음은 (main) (대화창·목록·설정)
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: '(main)',
 };
 
 // 목업이 밝은 크림색 디자인 하나뿐이라 다크모드는 쓰지 않는다.
@@ -28,7 +29,7 @@ export default function RootLayout() {
           <CardsProvider>
             <ThemeProvider value={DefaultTheme}>
               <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="(main)" options={{ headerShown: false }} />
               </Stack>
               {/* 겹치는 순서(아래→위): 대화창 → 첫 실행 안내 → 오프닝 */}
               <FirstRunGuide />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Chip } from '@/components/profile/Chip';
+import { Chip } from '@/components/common/Chip';
 import { PROVINCES, REGIONS } from '@/constants/regions';
 import { useSettings, useTheme } from '@/contexts/settings-context';
 

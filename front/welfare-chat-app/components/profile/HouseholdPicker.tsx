@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Chip } from '@/components/profile/Chip';
+import { Chip } from '@/components/common/Chip';
 import { HOUSEHOLD_TAGS, HouseholdTag } from '@/types/profile';
 
 // 가구·경제 상황 여러 개 고르기 (해당하는 것만)

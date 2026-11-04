@@ -37,7 +37,7 @@ export function BirthYearInput({ value, onChange }: { value: number | null; onCh
         accessibilityLabel="출생연도"
         style={[
           styles.input,
-          { fontSize: fontSize + 3, color: theme.text, borderColor: theme.border, backgroundColor: '#FFFFFF' },
+          { fontSize: fontSize + 3, color: theme.text, borderColor: theme.border, backgroundColor: theme.inputBackground },
           webNoOutline,
         ]}
       />

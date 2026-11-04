@@ -19,6 +19,10 @@ const basePalette = {
   star: '#C0504D',
   starOff: '#B0ABA3',
   danger: '#B5452E',
+  inputBackground: '#FFFFFF', // 글자를 직접 쓰는 입력칸 배경 (카드보다 한 단계 밝게)
+  switchThumb: '#FFFFFF', // 켜기/끄기 스위치 손잡이
+  overlay: 'rgba(59, 47, 35, 0.18)', // 확대 화면 뒤를 살짝 어둡게 덮는 막
+  shadow: '#000000',
 };
 
 export const Palettes = {

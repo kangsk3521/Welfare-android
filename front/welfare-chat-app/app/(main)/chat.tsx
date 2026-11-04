@@ -7,6 +7,7 @@ import { ChatInputBar } from '@/components/chat/ChatInputBar';
 import { ChatIntro } from '@/components/chat/ChatIntro';
 import { MessageBubble, TypingBubble } from '@/components/chat/MessageBubble';
 import { MIC_SPACE, MicButton } from '@/components/chat/MicButton';
+import { SaveProfilePrompt } from '@/components/chat/SaveProfilePrompt';
 import { useSessions } from '@/contexts/sessions-context';
 import { useTheme } from '@/contexts/settings-context';
 import { useChat } from '@/hooks/useChat';
@@ -37,6 +38,8 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
   const [inputText, setInputText] = useState('');
   const [isInputFocused, setIsInputFocused] = useState(false); // 선택 중엔 마이크·공유 버튼 숨김
   const [openedCard, setOpenedCard] = useState<PolicyCard | null>(null); // 확대해서 보고 있는 카드
+  // 메시지별 "내 정보에 저장할까요?" 안내 상태 (저장함 / 이번만)
+  const [promptStatus, setPromptStatus] = useState<Record<string, 'saved' | 'dismissed'>>({});
   const keyboardHeight = useKeyboardHeight();
 
   const { messages, isSending, send } = useChat(sessionId);
@@ -70,13 +73,24 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
         <FlatList
           ref={listRef}
           data={messages}
-          renderItem={({ item }) =>
-            item.cards?.length ? (
-              <CardsAnswer message={item} sessionId={sessionId} onOpen={setOpenedCard} />
-            ) : (
-              <MessageBubble message={item} />
-            )
-          }
+          renderItem={({ item }) => (
+            <View>
+              {item.cards?.length ? (
+                <CardsAnswer message={item} sessionId={sessionId} onOpen={setOpenedCard} />
+              ) : (
+                <MessageBubble message={item} />
+              )}
+              {/* 대화에서 새로 알게 된 정보가 있으면 "내 정보에 저장할까요?" */}
+              {item.detected && item.detected.length > 0 && (
+                <SaveProfilePrompt
+                  tags={item.detected}
+                  status={promptStatus[item.id] ?? 'open'}
+                  onDone={(status) => setPromptStatus((s) => ({ ...s, [item.id]: status }))}
+                />
+              )}
+            </View>
+          )}
+          extraData={promptStatus}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={<ChatIntro showSuggestions={messages.length === 0} onPick={sendText} />}
           ListFooterComponent={isSending ? <TypingBubble /> : null}

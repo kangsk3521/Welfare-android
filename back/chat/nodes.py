@@ -8,6 +8,7 @@ from langchain_upstage import ChatUpstage
 from langchain_upstage.embeddings import UpstageEmbeddings
 
 from state import AgentState, IntentClassification, ConditionExtraction, TargetResolution, CardIntro
+import user_profile as profile_mod
 from prompts import (
     INTENT_SYSTEM_PROMPT,
     RESOLVE_SYSTEM_PROMPT,
@@ -216,7 +217,10 @@ def extract_conditions_node(state: AgentState):
 
 
     search_query = result.search_query.strip() or state.get("current_query", "")
-    filled_slots_count = sum(1 for slot in [life_cycle, target_group, theme] if slot)
+    # 앱이 보낸 프로필(나이·가구상황)이 있으면 그것도 조건으로 친다 → "받을 수 있는 혜택 있어?"에도 되묻지 않고 바로 검색
+    profile = state.get("user_profile") or {}
+    profile_slots = [profile_mod.life_cycle_of(profile), profile_mod.target_groups_of(profile)]
+    filled_slots_count = sum(1 for slot in [life_cycle, target_group, theme, *profile_slots] if slot)
 
     final_intent = "검색가능" if (result.topic_given or filled_slots_count >= 1) else "조건부족"
 
@@ -231,6 +235,8 @@ def extract_conditions_node(state: AgentState):
         "life_cycle": life_cycle,
         "target_group": target_group,
         "theme": theme,
+        # 이번 말에서 새로 나온 대상구분 (예: "장애가 있어서" → 장애인). 앱이 프로필에 저장할지 물어본다
+        "detected_tags": [t for t in result.target_group_add if t in profile_mod.DETECTABLE_TAGS],
     }
 
 
@@ -238,6 +244,7 @@ def extract_conditions_node(state: AgentState):
 # 검색
 
 VEC_TOP_K = 30
+VEC_TOP_K_REGION = 120  # 지역 필터가 있을 때: 다른 지역 정책이 걸러지는 만큼 후보를 더 가져온다
 VEC_THRESHOLD = 0.63
 SLOT_BOOST=0.03
 RESULT_LIMIT = 5
@@ -252,8 +259,20 @@ def execute_search_node(state: AgentState):
     target_group = state.get("target_group", [])
     theme = state.get("theme", [])
 
+    # 앱이 보낸 프로필로 조건 보충 (대화에서 말한 조건이 우선, 없을 때만 나이 → 생애주기). 가구상황·장애는 더한다
+    profile = state.get("user_profile") or {}
+    if not life_cycle and profile_mod.life_cycle_of(profile):
+        life_cycle = profile_mod.life_cycle_of(profile)
+        # "받을 수 있는 혜택 있어?"처럼 모호한 질문은 문장만으로는 검색이 잘 안 돼서, 생애주기 단어를 덧붙여 찾는다
+        query_text = f"{query_text} {life_cycle[0]}"
+    target_group = list(set(target_group) | set(profile_mod.target_groups_of(profile)))
+    province, district = profile.get("province"), profile.get("district")
+
     query_embedding = query_emb_model.embed_query(query_text)
 
+    # 지역 필터: 사는 곳(시·도)을 알면 중앙부처 정책 + 그 지역 지자체 정책만.
+    # 시·군·구까지 알면 그 시·군·구 + 시·도 전체 대상(DB 시군구 값이 "-", "전체", "○○교육청") 정책만.
+    # 걸러지는 만큼 벡터 후보를 더 많이 가져온다.
     cypher_vec = """
     CALL db.index.vector.queryNodes('chunk_embedding_index', $k, $query_embedding)
         YIELD node AS c, score AS vec_score
@@ -261,6 +280,12 @@ def execute_search_node(state: AgentState):
     WITH p, max(vec_score) AS max_score,
          collect({type: c.type, content: c.content, score: vec_score}) AS hits
     WHERE max_score >= $threshold
+      AND ($province IS NULL
+           OR EXISTS { MATCH (p)-[:AVAILABLE_IN]->(:Region {code: '중앙'}) }
+           OR EXISTS { MATCH (p)-[:AVAILABLE_IN]->(dd:District)
+                       WHERE dd.code STARTS WITH $province + '::'
+                         AND ($district IS NULL OR dd.name = $district
+                              OR dd.name IN ['-', '전체'] OR dd.name ENDS WITH '교육청') })
     RETURN p.servId AS id, p.servNm AS title, p.servDgst AS digest,
            [(p)-[:MANAGED_BY]->(d:Department) | d.name][0] AS department,
            [(p)-[:PROVIDES]->(s:SupportType) | s.name][0] AS support_type,
@@ -271,9 +296,11 @@ def execute_search_node(state: AgentState):
            [(p)-[:HAS_INFO]->(ac:Chunk) | {type: ac.type, content: ac.content}] AS all_chunks
     """
     records = graph.query(cypher_vec, params={
-        "k": VEC_TOP_K,
+        "k": VEC_TOP_K_REGION if province else VEC_TOP_K,
         "query_embedding": query_embedding,
         "threshold": VEC_THRESHOLD,
+        "province": province,
+        "district": district,
     })
 
     # 조건이 일치하는 슬롯 하나당 가산점 (필터가 아니라 순위 보정)
@@ -407,12 +434,12 @@ def _plain_text(text: str) -> str:
     text = re.sub(r"^[ \t]*-{3,}[ \t]*$", "", text, flags=re.M)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
-def _card_answer(messages, search_results, cards):
+def _card_answer(messages, search_results, cards, user_info="없음"):
     """카드형 답변 메시지를 만든다.
     카드 데이터는 메시지의 additional_kwargs["policy_cards"]에 담는다 → /chat 응답과 대화 기록(history)에 함께 실린다."""
     intro, picks = CARD_FALLBACK_INTRO, list(range(1, len(cards) + 1))
     try:
-        result = card_intro_chain.invoke({"search_results": search_results, "messages": messages})
+        result = card_intro_chain.invoke({"search_results": search_results, "messages": messages, "user_info": user_info})
         intro = _plain_text(result.intro or "") or intro
         # 범위 밖 번호·중복 제거, 순위 순서 유지
         picks = sorted({p for p in result.picks if 1 <= p <= len(cards)})
@@ -450,14 +477,16 @@ def generate_answer_node(state: AgentState):
     # 카드형 답변: 정책 목록을 보여주는 턴이면 정책 내용은 앱 카드로 보여주고, AI는 짧은 소개와 보여줄 정책만 고른다
     cards = state.get("current_cards") or []
     if intent != "상세요구" and cards:
-        return _card_answer(messages, search_results, cards)
+        return _card_answer(messages, search_results, cards, profile_mod.describe(state.get("user_profile") or {}))
 
     if intent == "상세요구":
         # 정책 전체 내용은 앱 카드(누르면 확대)로 함께 보여주므로, AI 글은 물어본 내용 중심으로 짧게
         guide = ("사용자가 선택한 정책의 [상세 정보]를 제공 중입니다. 정책의 전체 내용(지원대상·지원내용·신청방법)은 "
                  "답변 아래에 카드로 함께 보여지므로 모두 옮겨 적지 마세요. 사용자가 물은 것(예: 신청 방법, 대상 여부)에 대한 답을 "
                  "중심으로 3~6문장으로 간결하게 설명하고, 마지막에 '카드를 누르면 전체 내용을 볼 수 있어요'라고 안내하세요. "
-                 "마크다운 기호(**, ###, ---)와 표는 쓰지 마세요.")
+                 "마크다운 기호(**, ###, ---)와 표는 쓰지 마세요. "
+                 f"참고할 [사용자 정보]: {profile_mod.describe(state.get('user_profile') or {})} "
+                 "(대화 내용과 다르면 대화를 따르고, 사용자 정보를 그대로 읊지 마세요)")
     else:
         guide = ("여러 정책의 [목록과 요약]을 제공 중입니다. 사용자가 신청 방법, 지원 대상, 지원 내용 등 특정 정보를 물었다면 "
                  "그 정보를 먼저 답하세요. 요약하여 소개한 뒤 '더 자세히 알고 싶은 정책이 있다면 번호나 이름을 말씀해 주세요'라고 유도하세요.")

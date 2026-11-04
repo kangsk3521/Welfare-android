@@ -1,7 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ToggleSwitch } from '@/components/common/ToggleSwitch';
 import { BirthYearInput } from '@/components/profile/BirthYearInput';
 import { HouseholdPicker } from '@/components/profile/HouseholdPicker';
 import { RegionPicker } from '@/components/profile/RegionPicker';
@@ -9,6 +10,7 @@ import { Palette } from '@/constants/theme';
 import { useProfile } from '@/contexts/profile-context';
 import { useSettings, useTheme } from '@/contexts/settings-context';
 import { regionLabel } from '@/types/profile';
+import { askSensitiveConsent } from '@/utils/consent';
 import { confirm } from '@/utils/dialog';
 
 // 설정 화면의 "내 기본 정보" 카드: 나이 / 사는 곳 / 가구 상황 / 장애 여부(민감정보, 별도 동의) / 전체 삭제
@@ -23,12 +25,8 @@ export function ProfileEditor() {
   const [resetKey, setResetKey] = useState(0);
   const birthInputKey = `${loaded}-${resetKey}`;
 
-  const askSensitiveConsent = async () => {
-    const ok = await confirm(
-      '장애 여부는 법에서 정한 민감정보예요.\n\n· 이 휴대폰에만 암호화해서 저장돼요.\n· 맞춤 혜택을 찾을 때만 함께 보내지고 서버에는 저장하지 않아요.\n· 언제든 동의를 거두면 바로 지워져요.\n\n동의하고 입력할까요?',
-      '동의'
-    );
-    if (ok) setSensitiveConsent(true);
+  const requestConsent = async () => {
+    if (await askSensitiveConsent()) setSensitiveConsent(true);
   };
 
   const askWithdraw = async () => {
@@ -109,13 +107,10 @@ export function ProfileEditor() {
                   <Text style={[styles.value, { fontSize: fontSize + 1 }]}>
                     {profile.disability ? '장애가 있어요' : '해당 없음'}
                   </Text>
-                  <Switch
+                  <ToggleSwitch
                     value={profile.disability === true}
                     onValueChange={(on) => updateProfile({ disability: on })}
-                    trackColor={{ false: theme.chip, true: theme.accent }}
-                    thumbColor="#FFFFFF"
-                    {...({ activeThumbColor: '#FFFFFF' } as object)}
-                    accessibilityLabel="장애 여부"
+                    label="장애 여부"
                   />
                 </View>
                 <Pressable onPress={askWithdraw} hitSlop={10} accessibilityRole="button">
@@ -123,7 +118,7 @@ export function ProfileEditor() {
                 </Pressable>
               </>
             ) : (
-              <Pressable style={styles.consentButton} onPress={askSensitiveConsent} accessibilityRole="button">
+              <Pressable style={styles.consentButton} onPress={requestConsent} accessibilityRole="button">
                 <Text style={[styles.consentText, { fontSize }]}>동의하고 입력하기</Text>
               </Pressable>
             )}

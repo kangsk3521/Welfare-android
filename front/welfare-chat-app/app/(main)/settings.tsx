@@ -1,6 +1,7 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { ToggleSwitch } from '@/components/common/ToggleSwitch';
 import { ProfileEditor } from '@/components/profile/ProfileEditor';
 import { Palette } from '@/constants/theme';
 import { FONT_SIZE_MAX, FONT_SIZE_MIN, useSettings, useTheme } from '@/contexts/settings-context';
@@ -38,13 +39,10 @@ export default function SettingsScreen() {
       {/* 색약모드 */}
       <View style={[styles.card, styles.row]}>
         <Text style={styles.label}>색약모드</Text>
-        <Switch
+        <ToggleSwitch
           value={colorBlind}
           onValueChange={setColorBlind}
-          trackColor={{ false: theme.chip, true: theme.accent }}
-          thumbColor="#FFFFFF"
-          {...({ activeThumbColor: '#FFFFFF' } as object)} // 웹 전용 속성 (안 넣으면 웹에서 초록색)
-          accessibilityLabel="색약모드"
+          label="색약모드"
           style={{ transform: [{ scale: 1.3 }], marginRight: 6 }}
         />
       </View>

@@ -97,4 +97,9 @@ class AgentState(TypedDict):
     # 이번 검색 결과를 앱 카드용으로 정리한 것 (id, title, target, content, apply_method, department, support_type, digest)
     current_cards: List[dict]
 
+    # 앱이 이번 요청에 함께 보낸 사용자 기본 정보 (user_profile.py). 요청마다 새 값으로 덮어쓴다
+    user_profile: dict
+    # 이번 대화에서 새로 감지한 대상구분 (예: 장애인, 저소득) → 앱이 "저장할까요?"라고 묻는다
+    detected_tags: List[str]
+
 

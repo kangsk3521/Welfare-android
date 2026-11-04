@@ -17,4 +17,5 @@ export type Message = {
   isUser: boolean; // true: 내가 보낸 말, false: 챗봇 답변
   isError?: boolean; // 서버 연결 실패 안내 말풍선
   cards?: PolicyCard[]; // 추천 정책 카드 (검색 답변일 때만)
+  detected?: string[]; // 이 대화에서 새로 알게 된 정보 (예: 저소득, 장애인) → "내 정보에 저장할까요?"
 };

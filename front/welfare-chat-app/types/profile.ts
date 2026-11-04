@@ -33,3 +33,29 @@ export const ageFromBirthYear = (birthYear: number) => new Date().getFullYear() 
 
 // 사는 곳을 한 줄 글로 (예: "서울특별시 송파구")
 export const regionLabel = (p: UserProfile) => [p.province, p.district].filter(Boolean).join(' ');
+
+// 채팅할 때 서버로 보내는 형태 (서버는 이번 답변에만 쓰고 저장하지 않음).
+// 장애 여부는 민감정보 동의가 있을 때만 보낸다. 아무 정보도 없으면 null (보내지 않음)
+export type ProfilePayload = {
+  birth_year: number | null;
+  province: string | null;
+  district: string | null;
+  household: HouseholdTag[];
+  disability: boolean | null;
+};
+
+export function toProfilePayload(p: UserProfile): ProfilePayload | null {
+  const payload: ProfilePayload = {
+    birth_year: p.birthYear,
+    province: p.province,
+    district: p.district,
+    household: p.household,
+    disability: p.sensitiveConsent ? p.disability : null,
+  };
+  const empty = !payload.birth_year && !payload.province && payload.household.length === 0 && !payload.disability;
+  return empty ? null : payload;
+}
+
+// 서버가 대화에서 감지해 보내는 정보 중 '장애인'은 민감정보라 따로 다룬다
+export const DISABILITY_TAG = '장애인';
+export const isHouseholdTag = (tag: string): tag is HouseholdTag => (HOUSEHOLD_TAGS as readonly string[]).includes(tag);

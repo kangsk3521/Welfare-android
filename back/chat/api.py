@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
@@ -12,6 +12,7 @@ import openai
 from graph import app
 from tasks import session_timestamps
 from auth import issue_token, require_device, thread_key, verify_token
+from user_profile import UserProfileIn, new_detected
 
 
 router = APIRouter()
@@ -32,6 +33,8 @@ def register_device():
 class ChatRequest(BaseModel):
     session_id: str          # 사용자 구분용 ID (단톡방 번호 같은 역할)
     user_message: str        # 사용자가 입력한 질문
+    # 앱(휴대폰)에 저장된 사용자 기본 정보. 이번 답변에만 쓰고 서버에 저장하거나 로그에 남기지 않는다
+    profile: Optional[UserProfileIn] = None
 
 # 정책 카드 1장 (앱에서 카드로 표시. 내용은 DB 원문)
 class PolicyCard(BaseModel):
@@ -48,6 +51,7 @@ class PolicyCard(BaseModel):
 class ChatResponse(BaseModel):
     bot_reply: str           # 챗봇의 답변 (카드가 있으면 카드 위에 보여줄 짧은 소개)
     cards: List[PolicyCard] = []  # 추천 정책 카드. 되묻기·일상대화·상세설명 답변이면 빈 목록
+    detected: List[str] = []      # 이번 대화에서 새로 알게 된 대상구분 (프로필에 없는 것). 앱이 저장할지 물어본다
 
 
 def message_cards(msg) -> List[PolicyCard]:
@@ -70,8 +74,13 @@ def chat_with_bot(request: ChatRequest, device_id: str = Depends(require_device)
     session_timestamps[thread_id] = datetime.now()
 
     # 챗봇(app)에게 질문 던지기 (주방으로 전달)
+    profile = request.profile.cleaned() if request.profile else {}
     result_state = app.invoke(
-        {"messages": [HumanMessage(content=request.user_message)]},
+        {
+            "messages": [HumanMessage(content=request.user_message)],
+            "user_profile": profile,   # 요청마다 새 값으로 덮어쓴다
+            "detected_tags": [],        # 이번 요청에서 새로 감지한 것만 남도록 비운다
+        },
         config=config
     )
     
@@ -79,7 +88,11 @@ def chat_with_bot(request: ChatRequest, device_id: str = Depends(require_device)
     final_message = result_state["messages"][-1]
 
     # 포장해서(Response 형식) 손님에게 반환
-    return ChatResponse(bot_reply=final_message.content, cards=message_cards(final_message))
+    return ChatResponse(
+        bot_reply=final_message.content,
+        cards=message_cards(final_message),
+        detected=new_detected(result_state.get("detected_tags") or [], profile),
+    )
 
 
 

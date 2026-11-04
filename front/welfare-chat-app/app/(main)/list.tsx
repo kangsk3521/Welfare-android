@@ -41,7 +41,7 @@ export default function ListScreen() {
 
   const openSession = (id: string) => {
     selectSession(id);
-    router.dismissTo('/chat/chat');
+    router.dismissTo('/chat');
   };
 
   const startNew = () => openSession(newSession());

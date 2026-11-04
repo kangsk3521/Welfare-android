@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 
 import { get_chat_history, sendChatMessage } from '@/api/chatApi';
+import { useProfile } from '@/contexts/profile-context';
 import { useSessions } from '@/contexts/sessions-context';
 import { Message } from '@/types/chat';
+import { toProfilePayload } from '@/types/profile';
 
 const SEND_FAILED_TEXT = '서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
 // 한 상담방의 대화: 지난 대화 불러오기 + 메시지 보내기
 export function useChat(sessionId: string) {
   const { setTitleIfUntitled } = useSessions();
+  const { profile } = useProfile();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSending, setIsSending] = useState(false);
 
@@ -36,8 +39,9 @@ export function useChat(sessionId: string) {
     setTitleIfUntitled(sessionId, text); // 첫 질문이 목록 제목이 된다
     setIsSending(true);
 
-    sendChatMessage(sessionId, text)
-      .then(({ reply, cards }) => addMessage({ text: reply, isUser: false, cards }, 'b'))
+    // 폰에 저장된 내 기본 정보를 맥락으로 함께 보낸다 (서버는 저장하지 않음)
+    sendChatMessage(sessionId, text, toProfilePayload(profile))
+      .then(({ reply, cards, detected }) => addMessage({ text: reply, isUser: false, cards, detected }, 'b'))
       .catch((error) => {
         console.error('챗봇 응답 실패:', error);
         addMessage({ text: SEND_FAILED_TEXT, isUser: false, isError: true }, 'e');
