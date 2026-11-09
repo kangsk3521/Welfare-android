@@ -102,4 +102,7 @@ class AgentState(TypedDict):
     # 이번 대화에서 새로 감지한 대상구분 (예: 장애인, 저소득) → 앱이 "저장할까요?"라고 묻는다
     detected_tags: List[str]
 
+    # 답변 종류 (general, ask, list, detail, no_result, detail_fail, blocked). 나중에 마스코트 표정 등에 쓴다
+    reply_type: str
+
 

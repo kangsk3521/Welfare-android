@@ -80,6 +80,10 @@ def _chunk_text(content: str | None) -> str:
     return _CHUNK_PREFIX.sub("", (content or "").strip(), count=1)
 
 
+# 정책 ID(servId)로 복지로 상세 페이지 주소를 만든다 (팀원 카드뉴스 커밋에서 가져옴)
+BOKJIRO_URL = "https://www.bokjiro.go.kr/ssis-tbu/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId="
+
+
 def build_policy_card(record: dict) -> dict:
     """검색된 정책 1개를 앱 카드용 데이터로 정리한다.
     중앙부처 정책은 지원대상·서비스내용·신청방법 청크가 있고, 지자체 정책은 요약만 있다."""
@@ -94,6 +98,7 @@ def build_policy_card(record: dict) -> dict:
         "department": record.get("department") or "",
         "support_type": record.get("support_type") or "",
         "digest": digest,
+        "url": f"{BOKJIRO_URL}{record['id']}",
     }
 
 
@@ -457,6 +462,7 @@ def _card_answer(messages, search_results, cards, user_info="없음"):
         "current_recommended_ids": [c["id"] for c in shown],
         "current_recommended_names": names,
         "recommendation_history": [names],
+        "reply_type": "list",
     }
 
 
@@ -470,9 +476,9 @@ def generate_answer_node(state: AgentState):
 
     if search_results.startswith("조건에 맞는 복지 정책을 찾지 못했습니다"):
         msg = "조건에 맞는 정책을 찾지 못했습니다. 상황을 조금 다르게 말씀해 주시면 다시 찾아볼게요."
-        return {"messages": [AIMessage(content=msg)], "recommendation_history": [[]]}
+        return {"messages": [AIMessage(content=msg)], "recommendation_history": [[]], "reply_type":"no_result"}
     if search_results.startswith(("이전에 추천해", "해당 정책의 상세 정보")):
-        return {"messages": [AIMessage(content=search_results)]}
+        return {"messages": [AIMessage(content=search_results)], "reply_type": "detail_fail"}
 
     # 카드형 답변: 정책 목록을 보여주는 턴이면 정책 내용은 앱 카드로 보여주고, AI는 짧은 소개와 보여줄 정책만 고른다
     cards = state.get("current_cards") or []
@@ -488,6 +494,7 @@ def generate_answer_node(state: AgentState):
                  f"참고할 [사용자 정보]: {profile_mod.describe(state.get('user_profile') or {})} "
                  "(대화 내용과 다르면 대화를 따르고, 사용자 정보를 그대로 읊지 마세요)")
     else:
+        # 카드가 없을 때만 오는 경로라 글로 목록을 안내한다 (카드가 있으면 위의 _card_answer)
         guide = ("여러 정책의 [목록과 요약]을 제공 중입니다. 사용자가 신청 방법, 지원 대상, 지원 내용 등 특정 정보를 물었다면 "
                  "그 정보를 먼저 답하세요. 요약하여 소개한 뒤 '더 자세히 알고 싶은 정책이 있다면 번호나 이름을 말씀해 주세요'라고 유도하세요.")
 
@@ -518,27 +525,15 @@ def generate_answer_node(state: AgentState):
     })
 
 
-    if intent != "상세요구":   # 목록을 보여준 턴: 화면에 나온 순서로 갱신
-        norm = lambda s: re.sub(r"\s+", "", s)
-        text, seen, shown = norm(response.content), set(), []
-        for pid, name in zip(state.get("current_recommended_ids", []), state.get("current_recommended_names", [])):
-            pos = text.find(norm(name))
-            if pos >= 0 and name not in seen:
-                seen.add(name); shown.append((pos, pid, name))
-        if shown:
-            shown.sort()
-            names = [n for _, _, n in shown]
-            return {"messages": [response],
-                    "current_recommended_ids": [i for _, i, _ in shown],
-                    "current_recommended_names": names,
-                    "recommendation_history": [names]}
+    if intent != "상세요구":   # 목록을 보여준 턴
         return {"messages": [response],
-                "recommendation_history": [state.get("current_recommended_names", [])]}
+                "recommendation_history": [state.get("current_recommended_names", [])],
+                "reply_type": "list"}
 
     # 상세 답변: 물어본 정책 카드를 답변에 붙인다 (목록 답변처럼 /chat 응답·대화 기록에 함께 실림)
     if cards:
         response = AIMessage(content=_plain_text(response.content), additional_kwargs={"policy_cards": cards})
-    return {"messages": [response]}
+    return {"messages": [response], "reply_type": "detail"}
     
 
 
@@ -555,7 +550,7 @@ def general_chat_node(state: AgentState):
     ])
     
     response = (prompt | chat_llm).invoke({"messages": state["messages"]})
-    return {"messages": [response]}
+    return {"messages": [response], "reply_type":"general"}
 
 
 # --------------------------------------------------------- 
@@ -565,7 +560,7 @@ def block_attack_node(state: AgentState):
     print("프롬프트 공격 방어")
 
     response = "서비스 검색과 무관한 지시, 시스템 설정을 변경하려는 요청은 응답할수없습니다."
-    return {"messages": [AIMessage(content=response)]}
+    return {"messages": [AIMessage(content=response)],"reply_type":"blocked"}
 
 
 
@@ -577,4 +572,5 @@ def ask_for_details_node(state: AgentState):
         ("system", ASK_DETAILS_PROMPT),
         MessagesPlaceholder(variable_name="messages")
     ]) | chat_llm).invoke({"messages": state["messages"]})
-    return {"messages": [response], "ask_count": state.get("ask_count", 0) + 1}
+    return {"messages": [response], "ask_count": state.get("ask_count", 0) + 1, "reply_type":"ask"}
+
