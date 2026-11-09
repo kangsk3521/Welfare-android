@@ -37,6 +37,7 @@ interface PolicyCardResponse {
   department?: string;
   support_type?: string;
   digest?: string;
+  url?: string;
 }
 
 const toPolicyCard = (c: PolicyCardResponse): PolicyCard => ({
@@ -48,6 +49,7 @@ const toPolicyCard = (c: PolicyCardResponse): PolicyCard => ({
   department: c.department ?? '',
   supportType: c.support_type ?? '',
   digest: c.digest ?? '',
+  url: c.url || undefined,
 });
 
 // -------------------------------채팅 내역 가져오기

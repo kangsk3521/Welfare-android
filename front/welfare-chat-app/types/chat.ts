@@ -8,6 +8,7 @@ export type PolicyCard = {
   department: string; // 담당부처
   supportType: string; // 제공유형 (현금, 바우처 등)
   digest: string; // 한 줄 요약
+  url?: string; // 복지로 상세 페이지 주소 (예전에 보관한 카드에는 없을 수 있음)
 };
 
 // 대화창에 표시되는 메시지 한 개

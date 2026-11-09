@@ -38,6 +38,8 @@ export async function sharePolicyCard(card: PolicyCard) {
     card.content && `■ 내용\n${card.content}`,
     card.applyMethod && `■ 신청 방법\n${card.applyMethod}`,
     card.department && `■ 담당: ${card.department}`,
+    card.url && `■ 복지로에서 자세히 보기
+${card.url}`,
   ].filter(Boolean);
   await shareText(lines.join('\n\n'));
 }

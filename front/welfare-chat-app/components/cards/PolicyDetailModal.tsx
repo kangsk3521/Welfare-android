@@ -1,13 +1,14 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BlurView } from 'expo-blur';
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { ZoomIn } from 'react-native-reanimated';
 
 import { Palette } from '@/constants/theme';
 import { useCards } from '@/contexts/cards-context';
 import { useSettings, useTheme } from '@/contexts/settings-context';
 import { PolicyCard } from '@/types/chat';
+import { notify } from '@/utils/dialog';
 import { sharePolicyCard } from '@/utils/share';
 
 // 카드를 눌렀을 때: 뒤 화면을 흐리게(블러) 하고, 카드를 확대해 정책 전체 내용을 보여준다.
@@ -45,6 +46,16 @@ export function PolicyDetailModal({ card, onClose }: { card: PolicyCard | null; 
               <Section label="대상" text={card.target} fontSize={fontSize} styles={styles} />
               <Section label="내용" text={card.content || card.digest} fontSize={fontSize} styles={styles} />
               <Section label="신청 방법" text={card.applyMethod} fontSize={fontSize} styles={styles} />
+              {card.url && (
+                <Pressable
+                  style={styles.linkButton}
+                  onPress={() => openLink(card.url!)}
+                  accessibilityRole="link"
+                  accessibilityLabel="복지로에서 자세히 보기">
+                  <Text style={[styles.linkText, { fontSize }]}>복지로에서 자세히 보기</Text>
+                  <MaterialIcons name="open-in-new" size={fontSize + 2} color={theme.accentStrong} />
+                </Pressable>
+              )}
               <Text style={[styles.notice, { fontSize: fontSize - 2 }]}>
                 ※ AI가 찾아드린 정보예요. 정확한 자격과 신청은 담당 기관이나 주민센터에서 꼭 확인하세요.
               </Text>
@@ -68,6 +79,15 @@ export function PolicyDetailModal({ card, onClose }: { card: PolicyCard | null; 
       )}
     </Modal>
   );
+}
+
+// 복지로 상세 페이지를 폰 브라우저로 연다 (앱 밖으로 나감)
+async function openLink(url: string) {
+  try {
+    await Linking.openURL(url);
+  } catch {
+    notify('링크를 열 수 없어요. 잠시 후 다시 시도해 주세요.');
+  }
 }
 
 // 내용이 없는 항목(지자체 정책의 신청방법 등)은 안내 문구로 대신한다
@@ -132,6 +152,18 @@ const makeStyles = (t: Palette) =>
     body: { color: t.text },
     empty: { color: t.subText },
     notice: { color: t.subText },
+    // 본문 아래 링크 버튼: 공유·보관(꽉 찬 버튼)과 구분되게 테두리만
+    linkButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      minHeight: 48,
+      borderRadius: 24,
+      borderWidth: 1.5,
+      borderColor: t.accentStrong,
+    },
+    linkText: { color: t.accentStrong, fontWeight: '700' },
     footer: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1.5, borderTopColor: t.border },
     footerButton: {
       flex: 1,

@@ -241,7 +241,10 @@ def extract_conditions_node(state: AgentState):
         "target_group": target_group,
         "theme": theme,
         # 이번 말에서 새로 나온 대상구분 (예: "장애가 있어서" → 장애인). 앱이 프로필에 저장할지 물어본다
-        "detected_tags": [t for t in result.target_group_add if t in profile_mod.DETECTABLE_TAGS],
+        # AI가 근거 없이 채우는 경우가 있어서, 사용자가 이번에 쓴 문장에 그 말이 실제로 있을 때만 인정한다
+        "detected_tags": [t for t in result.target_group_add
+                          if t in profile_mod.DETECTABLE_TAGS
+                          and profile_mod.has_evidence(t, state["messages"][-1].content)],
     }
 
 
