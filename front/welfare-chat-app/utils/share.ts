@@ -34,6 +34,8 @@ export async function shareMessages(messages: Message[]) {
 export async function sharePolicyCard(card: PolicyCard) {
   const lines = [
     `[${card.title}]`,
+    card.what && `→ ${card.what}`,
+    card.who && `→ 대상: ${card.who}`,
     card.target && `■ 대상\n${card.target}`,
     card.content && `■ 내용\n${card.content}`,
     card.applyMethod && `■ 신청 방법\n${card.applyMethod}`,

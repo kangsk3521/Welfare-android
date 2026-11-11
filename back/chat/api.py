@@ -1,5 +1,4 @@
 import os
-from dotenv import load_dotenv
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -47,6 +46,9 @@ class PolicyCard(BaseModel):
     support_type: str = ""   # 제공유형 (현금, 바우처 등)
     digest: str = ""         # 한 줄 요약
     url: str = ""            # 복지로 상세 페이지 주소
+    is_local: bool = False   # 지자체 정책 (앱에서 "지역 정책" 표시)
+    what: str = ""           # 카드 요점: 무엇을 받는지 (AI가 만든 한 줄, 목록 답변에만)
+    who: str = ""            # 카드 요점: 누가 받는지
 
 # 손님에게 줄 영수증(Response) 양식 정의
 class ChatResponse(BaseModel):

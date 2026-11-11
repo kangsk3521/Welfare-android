@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 
-import { getSessionId } from '@/utils/sessionManager';
 import { loadJSON, loadText, saveJSON, saveText } from '@/utils/storage';
 
 // 상담방(대화방) 목록. 서버에는 방 목록 API가 없어서 폰에 저장한다.
@@ -50,10 +49,7 @@ export function SessionsProvider({ children }: { children: React.ReactNode }) {
           loadText(CURRENT_KEY),
         ]);
         let list: Session[] = savedList ?? [];
-        if (list.length === 0) {
-          // 예전 버전에서 쓰던 세션 id가 있으면 첫 방으로 이어서 쓴다
-          list = [makeSession(await getSessionId())];
-        }
+        if (list.length === 0) list = [makeSession()]; // 처음 켰을 때 빈 방 하나
         setSessions(list);
         setCurrentId(list.some((s) => s.id === savedCurrent) ? savedCurrent : list[0].id);
       } catch (e) {

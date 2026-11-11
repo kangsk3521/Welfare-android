@@ -1,4 +1,3 @@
-import React from 'react';
 import { StyleProp, Switch, ViewStyle } from 'react-native';
 
 import { useTheme } from '@/contexts/settings-context';

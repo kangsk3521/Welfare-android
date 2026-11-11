@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { get_chat_history, sendChatMessage } from '@/api/chatApi';
+import { getChatHistory, sendChatMessage } from '@/api/chatApi';
 import { useProfile } from '@/contexts/profile-context';
 import { useSessions } from '@/contexts/sessions-context';
 import { Message } from '@/types/chat';
@@ -18,7 +18,7 @@ export function useChat(sessionId: string) {
   // 지난 대화 불러오기 (보내는 중에 늦게 도착하면 덮어쓰지 않음)
   useEffect(() => {
     let cancelled = false;
-    get_chat_history(sessionId).then((history) => {
+    getChatHistory(sessionId).then((history) => {
       if (!cancelled && history.length > 0) setMessages((prev) => (prev.length === 0 ? history : prev));
     });
     return () => {

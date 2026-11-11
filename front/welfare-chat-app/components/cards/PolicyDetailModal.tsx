@@ -1,6 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BlurView } from 'expo-blur';
-import React from 'react';
 import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { ZoomIn } from 'react-native-reanimated';
 
@@ -43,6 +42,15 @@ export function PolicyDetailModal({ card, onClose }: { card: PolicyCard | null; 
             )}
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+              {/* 카드에 보였던 요점 두 줄 (있을 때만) */}
+              {(!!card.what || !!card.who) && (
+                <View style={styles.points}>
+                  {!!card.what && (
+                    <Text style={[styles.pointWhat, { fontSize: fontSize + 2 }]}>{card.what}</Text>
+                  )}
+                  {!!card.who && <Text style={[styles.pointWho, { fontSize }]}>{card.who}</Text>}
+                </View>
+              )}
               <Section label="대상" text={card.target} fontSize={fontSize} styles={styles} />
               <Section label="내용" text={card.content || card.digest} fontSize={fontSize} styles={styles} />
               <Section label="신청 방법" text={card.applyMethod} fontSize={fontSize} styles={styles} />
@@ -148,6 +156,9 @@ const makeStyles = (t: Palette) =>
     scroll: { flexGrow: 0 },
     scrollContent: { paddingHorizontal: 22, paddingVertical: 16, gap: 18 },
     section: { gap: 6 },
+    points: { backgroundColor: t.chip, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
+    pointWhat: { color: t.accentStrong, fontWeight: '800' },
+    pointWho: { color: t.text },
     label: { color: t.accentStrong, fontWeight: '800' },
     body: { color: t.text },
     empty: { color: t.subText },

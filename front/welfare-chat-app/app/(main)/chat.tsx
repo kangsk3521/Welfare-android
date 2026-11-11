@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { PolicyDetailModal } from '@/components/cards/PolicyDetailModal';
@@ -8,6 +8,7 @@ import { ChatIntro } from '@/components/chat/ChatIntro';
 import { MessageBubble, TypingBubble } from '@/components/chat/MessageBubble';
 import { MIC_SPACE, MicButton } from '@/components/chat/MicButton';
 import { SaveProfilePrompt } from '@/components/chat/SaveProfilePrompt';
+import { VoiceModal } from '@/components/chat/VoiceModal';
 import { useSessions } from '@/contexts/sessions-context';
 import { useTheme } from '@/contexts/settings-context';
 import { useChat } from '@/hooks/useChat';
@@ -21,7 +22,7 @@ import { shareMessages } from '@/utils/share';
 //   ┌ ChatIntro (안내 + 추천칩) ┐
 //   │ MessageBubble ...         │  ← FlatList
 //   │ CardsAnswer (소개 + 정책 카드들) │  카드를 누르면 PolicyDetailModal (블러 + 확대)
-//   │        MicButton (떠 있음) │
+//   │        MicButton (떠 있음) │  누르면 VoiceModal (가운데 음성 창, 다 말하면 바로 전송)
 //   └ ChatInputBar (입력·전송·공유)┘
 
 // 방이 바뀌면 key가 바뀌어서 대화 화면을 새로 그린다 (이전 방 메시지가 남지 않게)
@@ -43,11 +44,14 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
   const keyboardHeight = useKeyboardHeight();
 
   const { messages, isSending, send } = useChat(sessionId);
-  const voice = useVoiceRecorder(sessionId, setInputText); // 인식된 글자는 입력칸으로
-
-  const sendText = (text: string) => {
-    if (send(text)) setInputText('');
+  const sendText = (text: string): boolean => {
+    const sent = send(text);
+    if (sent) setInputText('');
+    return sent;
   };
+
+  // 말하는 동안 알아들은 말은 가운데 음성 창에 크게, 다 말하면 바로 전송 (못 보내면 입력칸에 넣어 둠)
+  const voice = useVoiceRecorder(sessionId, sendText, setInputText);
 
   // 최신 메시지가 보이게 맨 아래로 내리는 때:
   // - 새 메시지가 생기거나 '답변 작성 중'이 바뀔 때
@@ -99,9 +103,8 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
         />
         <MicButton
           visible={!isInputFocused}
-          isRecording={voice.isRecording}
-          status={voice.voiceStatus}
-          onPress={voice.toggleRecording}
+          notice={voice.notice}
+          onPress={voice.start}
         />
       </View>
 
@@ -115,6 +118,7 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
       />
 
       <PolicyDetailModal card={openedCard} onClose={() => setOpenedCard(null)} />
+      <VoiceModal phase={voice.phase} text={voice.liveText} onDone={voice.stop} onCancel={voice.cancel} />
     </View>
   );
 }

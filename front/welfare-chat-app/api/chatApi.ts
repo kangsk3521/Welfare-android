@@ -38,6 +38,9 @@ interface PolicyCardResponse {
   support_type?: string;
   digest?: string;
   url?: string;
+  is_local?: boolean;
+  what?: string;
+  who?: string;
 }
 
 const toPolicyCard = (c: PolicyCardResponse): PolicyCard => ({
@@ -50,6 +53,9 @@ const toPolicyCard = (c: PolicyCardResponse): PolicyCard => ({
   supportType: c.support_type ?? '',
   digest: c.digest ?? '',
   url: c.url || undefined,
+  isLocal: c.is_local ?? false,
+  what: c.what || undefined,
+  who: c.who || undefined,
 });
 
 // -------------------------------채팅 내역 가져오기
@@ -61,7 +67,7 @@ interface HistoryResponse {
   cards?: PolicyCardResponse[];
 }
 
-export const get_chat_history = async (sessionId: string): Promise<Message[]> => {
+export const getChatHistory = async (sessionId: string): Promise<Message[]> => {
   try {
     const response = await client.get<HistoryResponse[]>(`/chat/history/${sessionId}`);
     return response.data.map((m) => ({ id: m.id, text: m.text, isUser: m.isUser, cards: (m.cards ?? []).map(toPolicyCard) }));

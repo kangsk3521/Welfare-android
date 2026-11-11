@@ -60,12 +60,23 @@ class ConditionExtraction(BaseModel):
     theme_remove: List[Literal["신체건강", "정신건강", "생활지원", "주거", "일자리", "문화·여가", "안전·위기", "임신·출산", "보육", "교육", "입양·위탁", "보호·돌봄", "서민금융", "법률", "에너지"]] = Field(default_factory=list)
     
 
-# 카드형 답변: AI가 카드 위에 붙일 짧은 소개 + 보여줄 정책 고르기
+# 카드 1장의 한 줄 요점 (카드 기본 화면에 크게 보여줌. 긴 원문은 확대 화면에)
+class CardSummary(BaseModel):
+    no: int = Field(description="[검색 데이터] 순위 번호 (picks에 넣은 번호)")
+    what: str = Field(default="", description="무엇을 받는지 한 줄, 25자 이내. 금액·기간·횟수 등 숫자 우선. 예: 월 최대 20만원, 최대 24개월")
+    who: str = Field(default="", description="누가 받는지 한 줄, 20자 이내. 예: 만 19~34세 무주택 청년")
+
+
+# 카드형 답변: AI가 카드 위에 붙일 짧은 소개 + 보여줄 정책 고르기 + 카드별 요점
 class CardIntro(BaseModel):
     intro: str = Field(description="카드 위에 보여줄 1~3문장 소개. 정책 이름·세부 내용을 나열하지 말 것")
     picks: List[int] = Field(
         default_factory=list,
         description="사용자 상황에 맞아 카드로 보여줄 정책의 [검색 데이터] 순위 번호(1부터). 순위 순서 그대로",
+    )
+    summaries: List[CardSummary] = Field(
+        default_factory=list,
+        description="picks에 넣은 정책마다 하나씩. [검색 데이터]에 있는 내용만 짧게",
     )
 
 

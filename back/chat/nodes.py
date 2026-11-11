@@ -70,7 +70,8 @@ card_intro_prompt = ChatPromptTemplate.from_messages([
     ("system", CARD_INTRO_PROMPT),
     MessagesPlaceholder(variable_name="messages")
 ])
-card_intro_chain = card_intro_prompt | llm.with_structured_output(CardIntro)
+# include_raw: 파싱 결과와 함께 원래 응답도 받아서 토큰 사용량을 로그에 남긴다
+card_intro_chain = card_intro_prompt | llm.with_structured_output(CardIntro, include_raw=True)
 
 
 # DB 청크 내용은 "[정책명: OO] 지원대상: 내용..." 형태라 앞의 머리말을 떼고 내용만 남긴다
@@ -99,6 +100,8 @@ def build_policy_card(record: dict) -> dict:
         "support_type": record.get("support_type") or "",
         "digest": digest,
         "url": f"{BOKJIRO_URL}{record['id']}",
+        # 지자체 정책은 DB에 '요약' 청크 하나만 있다 → 앱에서 "지역 정책" 표시
+        "is_local": "요약" in chunks and "서비스내용" not in chunks,
     }
 
 
@@ -449,19 +452,62 @@ def _plain_text(text: str) -> str:
     text = re.sub(r"^[ \t]*-{3,}[ \t]*$", "", text, flags=re.M)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
+
+SUMMARY_MAX = {"what": 40, "who": 30}  # 지시문은 25자/20자. 조금 넘는 건 봐주고 너무 길면 자른다
+_SECTION_END = "\n" + "-" * 30  # 검색 결과에서 정책 하나가 끝나는 구분선
+
+
+def _with_card_text(search_results: str, cards: list) -> str:
+    """요점(무엇을·누가)을 뽑으려면 지원대상·서비스내용이 필요한데, 검색 결과에는 정책마다 검색에 걸린 청크 2개만 들어 있다.
+    빠진 쪽만 카드 원문 앞부분(300자)으로 보충한다 (입력 토큰을 아끼려고 전부 넣지는 않음)"""
+    parts = re.split(r"(?=^\[\d+순위\])", search_results, flags=re.M)
+    for i, part in enumerate(parts):
+        m = re.match(r"\[(\d+)순위\]", part)
+        if not m or not 1 <= int(m.group(1)) <= len(cards):
+            continue
+        card = cards[int(m.group(1)) - 1]
+        extra = []
+        if "■ 지원대상" not in part and card["target"]:
+            extra.append(f"■ 지원대상 (앞부분)\n{card['target'][:300]}")
+        if "■ 서비스내용" not in part and card["content"] and not card["is_local"]:
+            extra.append(f"■ 서비스내용 (앞부분)\n{card['content'][:300]}")
+        if extra:
+            parts[i] = part.replace(_SECTION_END, "\n\n" + "\n\n".join(extra) + _SECTION_END, 1)
+    return "".join(parts)
+
+
+def _short(text: str, limit: int) -> str:
+    """카드 요점 한 줄 다듬기: 마크다운·따옴표·끝 마침표 제거, 너무 길면 자름"""
+    text = _plain_text(text or "").replace("\n", " ").strip().strip("\"'").rstrip(".")
+    return text if len(text) <= limit else text[: limit - 1].rstrip(" ,") + "…"
+
+
 def _card_answer(messages, search_results, cards, user_info="없음"):
     """카드형 답변 메시지를 만든다.
-    카드 데이터는 메시지의 additional_kwargs["policy_cards"]에 담는다 → /chat 응답과 대화 기록(history)에 함께 실린다."""
-    intro, picks = CARD_FALLBACK_INTRO, list(range(1, len(cards) + 1))
+    카드 데이터는 메시지의 additional_kwargs["policy_cards"]에 담는다 → /chat 응답과 대화 기록(history)에 함께 실린다.
+    AI가 카드마다 요점(what·who)도 함께 만든다 (호출 1번에 같이, 실패하면 앱이 한 줄 요약으로 대신 보여줌)"""
+    intro, picks, summaries = CARD_FALLBACK_INTRO, list(range(1, len(cards) + 1)), {}
     try:
-        result = card_intro_chain.invoke({"search_results": search_results, "messages": messages, "user_info": user_info})
+        out = card_intro_chain.invoke({
+            "search_results": _with_card_text(search_results, cards), "messages": messages, "user_info": user_info})
+        usage = getattr(out.get("raw"), "usage_metadata", None) or {}
+        print(f"카드 소개 토큰: 입력 {usage.get('input_tokens')}, 출력 {usage.get('output_tokens')}")
+        result = out.get("parsed")
+        if result is None:
+            raise ValueError(out.get("parsing_error") or "구조화 출력 실패")
         intro = _plain_text(result.intro or "") or intro
         # 범위 밖 번호·중복 제거, 순위 순서 유지
         picks = sorted({p for p in result.picks if 1 <= p <= len(cards)})
+        summaries = {s.no: s for s in result.summaries}
     except Exception as e:
         print(f"카드 소개 생성 실패, 기본값 사용: {e}")
 
-    shown = [cards[p - 1] for p in picks]
+    shown = []
+    for p in picks:
+        card, s = dict(cards[p - 1]), summaries.get(p)  # 원본 카드는 그대로 두고 복사본에 요점을 붙인다
+        card["what"] = _short(s.what, SUMMARY_MAX["what"]) if s else ""
+        card["who"] = _short(s.who, SUMMARY_MAX["who"]) if s else ""
+        shown.append(card)
     print(f"카드 {len(shown)}개 표시: {[c['title'] for c in shown]}")
 
     response = AIMessage(content=intro, additional_kwargs={"policy_cards": shown})
