@@ -212,6 +212,13 @@ def extract_conditions_node(state: AgentState):
         return list((set(prev) | set(add)) - set(remove))   
 
     target_group = merge_condition(state.get("target_group", []), result.target_group_add, result.target_group_remove)
+    # 이중 확인: 조건 추출 AI가 근거 없이 대상구분을 붙이는 경우가 있다 (예: "고령자 계속고용장려금 신청 방법" → 보훈대상자).
+    # 지금까지 사용자가 쓴 문장 어딘가에 그 말이 있을 때만 검색 조건으로 남긴다. 이전 턴에 잘못 붙은 것도 여기서 빠진다
+    user_text = " ".join(m.content for m in state["messages"] if m.type == "human")
+    dropped = [t for t in target_group if not profile_mod.has_evidence(t, user_text)]
+    if dropped:
+        print(f"근거 없는 대상구분 제외: {dropped}")
+    target_group = [t for t in target_group if t not in dropped]
     theme = merge_condition(state.get("theme", []), result.theme_add, result.theme_remove)
 
     life_cycle_value = result.life_cycle

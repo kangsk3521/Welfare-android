@@ -7,7 +7,7 @@ import { WS_URL } from '@/constants/config';
 import { LiveAudioStream } from '@/utils/audio';
 import { notify } from '@/utils/dialog';
 
-// 음성 인식: 녹음한 소리를 웹소켓으로 서버에 보내고, 서버(Whisper)가 바꾼 글자를 onRecognized로 돌려준다.
+// 음성 인식: 녹음한 소리를 웹소켓으로 서버에 보내고, 서버(클로바)가 바꾼 글자를 onRecognized로 돌려준다.
 // 흐름: 버튼 누름 → 권한 확인 → 소켓 연결 → 녹음 조각 전송 → 다시 누름 → "STOP_RECORDING" → 글자 수신
 export function useVoiceRecorder(sessionId: string, onRecognized: (text: string) => void) {
   const [isRecording, setIsRecording] = useState(false);
@@ -36,9 +36,12 @@ export function useVoiceRecorder(sessionId: string, onRecognized: (text: string)
       };
       socket.onmessage = (e) => {
         const data = JSON.parse(e.data);
-        if (data.recognized_text) {
-          onRecognized(data.recognized_text);
-          setVoiceStatus('');
+        // 클로바는 말하는 동안 지금까지 인식한 글자 전체를 계속 보내고, 끝나면 final: true를 보낸다
+        if (data.final) {
+          if (data.recognized_text) onRecognized(data.recognized_text);
+          setVoiceStatus(data.recognized_text ? '' : '말씀을 알아듣지 못했어요. 다시 시도해 주세요.');
+        } else if (data.recognized_text) {
+          onRecognized(data.recognized_text); // 입력칸에 실시간으로 채움. "듣고 있어요" 안내는 그대로 둔다
         } else if (data.status === 'error') {
           setVoiceStatus('음성 인식에 실패했어요.');
         }
