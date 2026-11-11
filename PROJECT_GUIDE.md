@@ -1,7 +1,7 @@
 # 복지 상담 챗봇 (Team SOLV) — 작업 가이드
 
 > 이 파일은 우리가 이 복사본(`welfare-local`)에서 무엇을 만들고 고쳤는지, 어떻게 실행하는지, 다음에 무엇을 할지를 정리한 문서다.
-> 새 대화(컨텍스트 초기화) 후에는 **이 파일부터 읽고** 이어서 작업한다. 마지막 갱신: 2026-11-05
+> 새 대화(컨텍스트 초기화) 후에는 **이 파일부터 읽고** 이어서 작업한다. 마지막 갱신: 2026-11-11
 
 ---
 
@@ -11,36 +11,60 @@
   - 원본은 팀원 저장소 `github.com/1062goodman/Welfare` 그대로. `welfare-eval`(성능 평가)이 원본을 쓴다.
 - **푸시 금지.** 이 복사본의 원격(origin)이 팀원 저장소라 `git push`하면 팀원 저장소로 간다. 커밋은 사용자가 요청할 때만.
 - 커밋할 때 `back/GraphRAG/*`, `back/rag/*`의 수정 4개는 **빼고** 커밋한다 (평가용 임시 수정, 원래 커밋하지 않는 것).
+- `front/welfare-chat-app/app.json`의 `owner: kangsk3521`·`extra.eas.projectId`(사용자 개인 Expo 프로젝트)도 **빼고** 커밋한다. 팀원 원래 값은 projectId `798e2046-…`였음.
+- **PC 서버를 와이파이/인터넷에 열지 않는다** (`--host 0.0.0.0`, `--lan` 금지). 폰 테스트는 USB(adb reverse)로 한다 (2장). 예전에 공유기 DMZ 때문에 8000 포트가 인터넷에 노출돼 스캐너 요청이 들어온 적 있음(29건 전부 404, 피해 없음). DMZ는 2026-11-10 사용자가 끔 (마인크래프트 25565 포트포워드만 남김).
 - 사용자와는 한국어로, **한 번에 한 기능씩 짧게** 소통한다. 긴 보고서 금지.
 - 비밀값(`back/chat/.env`, 토큰 비밀키)은 절대 커밋·출력하지 않는다 (`.gitignore`에 `**/.env` 있음).
 
 ## 1. 현재 상태
 
 - 브랜치: `feature/frontend-mockup` (원본 `966f051 "3 turn"`에서 분기)
-- 우리 커밋 4개:
+- 우리 커밋:
   | 커밋 | 내용 |
   |---|---|
   | `4792a24` | 목업 3개 화면(대화창·목록·설정), 대화창 모듈화, 기기 토큰 인증 |
   | `015bf9f` | 카드형 답변(공유·보관·거절, 블러 확대), 오프닝 화면, 하단 버튼 축소 |
   | `8689835` | 개인정보 암호화 저장·첫 실행 안내, 상세 답변 카드화, 뒤로가기·스크롤 버그 수정 |
   | `839b33c` | 채팅에 프로필 반영(지역 필터·감지 저장), 프론트 구조 정리 |
-- 원본 대비: 80개 파일 변경 (+3464 / −1604)
-- **팀원 커밋 병합 완료 (2026-11-09)**: origin/master `bf7c6f7`까지 11개를 병합 커밋으로 합침.
-  - 서버: 카드는 우리 방식 유지(팀원 `build_cards_node`·`policies` 응답은 안 씀) + 복지로 링크 `url`, `reply_type` 추가, 음성은 팀원 클로바(gRPC, `CLOVA_SECRET` 필요)에 우리 토큰 검사·로그 규칙 적용. 실제 채팅으로 확인함
-  - 앱: 우리 구조 유지. 팀원 `PolicyCarousel`·`VoicePanel`·`mascot`·`MascotHeader`는 뺌(마스코트 보류, 음성 화면은 나중에 `git show origin/master:front/welfare-chat-app/components/VoicePanel.tsx`로 옮겨옴). 마스코트 이미지 5장은 남김
-  - 남은 것: 카드에 "복지로에서 자세히 보기" 버튼, 음성 화면 이식, 마스코트(보류)
+  | `016016f` | 이 작업 가이드 문서 |
+  | `b694d95` | **팀원 커밋 11개 병합** (origin/master `bf7c6f7`까지) |
+  | `7351560` | 카드에 "복지로에서 자세히 보기" 버튼·공유 글에 링크, "저장할까요?" 이중 확인 |
+  | `a983001` | 검색 조건 이중 확인, 클로바 음성 안내 문구, 개발용 빌드 설정(`expo-dev-client`, eas.json node) |
+- 팀원 병합에서 정한 것 (사용자 결정: **카드·디자인은 우리 방식, 마스코트 보류**)
+  - 서버: 카드는 우리 `build_policy_card`/`_card_answer` 유지(팀원 `build_cards_node`·`policies` 응답 안 씀). 팀원 것에서 복지로 링크 `url`, `reply_type`, 프롬프트 불릿·이모지 규칙 삭제를 가져옴. 음성은 팀원 클로바(gRPC)로 교체 + 우리 토큰 검사·로그 글자 수만·오류 내용 숨김
+  - 앱: 우리 구조 유지. 팀원 `PolicyCarousel`·`VoicePanel`·`mascot`·`MascotHeader`는 뺌 (필요하면 `git show bf7c6f7:front/welfare-chat-app/components/VoicePanel.tsx`). 마스코트 이미지 5장(`assets/mascot/`)은 남김
+- **폰(개발용 빌드)으로 확인 완료 (2026-11-11)**: 클로바 음성 인식, 복지로 버튼, "저장할까요?" 이중 확인
 
 ## 2. 실행 방법
 
-### 앱 (front/welfare-chat-app)
+### 폰 테스트 = USB + 개발용 빌드 (추천, 네트워크에 포트 안 염)
+준비물(이미 있음): 폰에 개발용 앱 설치됨(갤럭시 SM-S948N), PC에 adb `C:\Users\kangs\Android\platform-tools\adb.exe`, 폰 개발자 옵션·USB 디버깅 허용.
+```powershell
+# 1) 백엔드: 아래 "로컬 백엔드" (--host 127.0.0.1)
+# 2) 앱 서버: 내 PC 안에서만. Node가 localhost를 IPv6(::1)로 열면 adb가 못 닿아서 ipv4first 필요
+cd welfare-local\front\welfare-chat-app
+$env:NODE_OPTIONS='--dns-result-order=ipv4first'; $env:EXPO_PUBLIC_API_URL='http://localhost:8000'; npx expo start --dev-client --localhost
+# 3) USB로 폰의 localhost:8000/8081 → PC 연결 (케이블을 다시 꽂으면 다시 실행)
+C:\Users\kangs\Android\platform-tools\adb.exe reverse tcp:8000 tcp:8000
+C:\Users\kangs\Android\platform-tools\adb.exe reverse tcp:8081 tcp:8081
+# 4) 앱 열기 (또는 폰에서 welfare-chat-app 실행 후 localhost:8081 선택)
+C:\Users\kangs\Android\platform-tools\adb.exe shell am start -a android.intent.action.VIEW -d "welfarechatapp://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+- 코드 수정은 자동 반영. 화면 확인은 `adb exec-out screencap -p > shot.png`
+- 처음부터 다시(첫 실행 안내 등): 폰 설정 → 앱 → welfare-chat-app → 저장공간 → 데이터 삭제
+
+### 개발용 빌드(APK) 다시 만들기 — 네이티브 패키지를 추가했을 때만 필요
+- Expo 계정 `kangsk3521`(사용자 개인), 프로젝트 `@kangsk3521/welfare-chat-app`. 로그인: `npx eas-cli login --device --non-interactive` → 브라우저 승인 후 `--resume <id> --match <숫자>`
+- `npx eas-cli build -p android --profile development --non-interactive --no-wait` → expo.dev에서 APK. 설치는 `adb install -r <apk>`
+- eas.json development에 `"node": "24.12.0"` 필수 (빌드 서버 기본 npm이 잠금파일의 `@emnapi`를 빠졌다고 보고 `npm ci` 실패)
+- JS 코드만 바꿨으면 다시 빌드할 필요 없음
+
+### 웹·Expo Go (예전 방식)
 ```powershell
 cd welfare-local\front\welfare-chat-app
-npm install
 npx expo start                      # 기본: Render 서버(welfare-1gs5.onrender.com)에 붙음
-# 내 PC 백엔드에 붙이기 (폰에서도 접속하려면 PC IP로)
-$env:EXPO_PUBLIC_API_URL = 'http://192.168.0.7:8000'; npx expo start
 ```
-- 웹: `http://localhost:8081`, 폰: Expo Go **SDK 57용** (`https://expo.dev/go?sdkVersion=57&platform=android`) → `exp://192.168.0.7:8081`
+- 웹: `http://localhost:8081`. Expo Go는 Play 스토어가 최신 SDK(58)로 자동 업데이트해서 SDK 57 앱이 안 열림 → 개발용 빌드 사용. 음성 녹음은 웹·Expo Go에서 안 됨
 - 첫 실행 안내를 다시 보려면 브라우저 Local Storage에서 `@onboarding_done` 삭제
 
 ### 로컬 백엔드 (back/chat) — 실제 DB·AI 사용
@@ -50,11 +74,12 @@ $env:EXPO_PUBLIC_API_URL = 'http://192.168.0.7:8000'; npx expo start
 cd welfare-local\back\chat
 py -3.11 -m venv .venv                      # 처음 한 번 (.venv는 gitignore됨)
 .\.venv\Scripts\pip install -r requirements.txt
-$env:OPENAI_API_KEY = 'sk-dummy'            # .env에 OpenAI 키가 없음 → 음성 인식만 안 됨 (없으면 서버가 아예 안 뜸)
+$env:OPENAI_API_KEY = 'sk-dummy'            # /File(파일 음성 인식)용. .env에 없음. 없으면 서버가 아예 안 뜸
 $env:DEVICE_TOKEN_SECRET = '<아무 긴 무작위 문자열>'  # 없으면 재시작 때마다 토큰 무효
-.\.venv\Scripts\python -m uvicorn main:server --host 0.0.0.0 --port 8000
+.\.venv\Scripts\python -m uvicorn main:server --host 127.0.0.1 --port 8000   # 0.0.0.0 금지 (0장)
 ```
-- `.env`에 Upstage 키·Neo4j 접속정보가 있음 (팀원 계정, 채팅마다 Upstage 사용량 나감)
+- `.env`에 Upstage 키·Neo4j 접속정보(팀원 계정, 채팅마다 Upstage 사용량 나감), **`CLOVA_SECRET`**(음성 인식, 2026-11-10 추가, 접속 확인함)
+- 새 패키지 `grpcio`, `protobuf`(클로바) — `pip install -r requirements.txt`로 설치됨
 - Neo4j Aura가 일시정지되면 서버가 시작 때 `Could not connect to Neo4j` 로 죽는다 → 팀원이 Aura 콘솔에서 켜야 함
 - 이전 세션의 venv·테스트 스크립트는 작업용 임시 폴더에 있어서 사라진다. 위 명령으로 다시 만든다.
 
@@ -143,7 +168,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | 파일 | 설명 |
 |---|---|
 | `PolicyCardView.tsx` | 카드: 제목·대상(2줄)·내용(3줄) + [공유│보관│거절]. 거절하면 "숨긴 혜택 · 제목 · 다시 보기" 한 줄. `variant='saved'`면 [공유│보관 해제]. 본문과 버튼은 형제 Pressable (버튼 안 버튼은 웹 오류) |
-| `PolicyDetailModal.tsx` | 카드 확대: `expo-blur` 블러 + 어두운 막, 카드 ZoomIn. 대상/내용/신청방법(없으면 "담당 기관에 문의"), 담당부처·제공유형 태그, "AI 정보, 담당 기관 확인" 안내, [공유][보관]. 바깥/X로 닫기 |
+| `PolicyDetailModal.tsx` | 카드 확대: `expo-blur` 블러 + 어두운 막, 카드 ZoomIn. 대상/내용/신청방법(없으면 "담당 기관에 문의"), 담당부처·제공유형 태그, "AI 정보, 담당 기관 확인" 안내, **"복지로에서 자세히 보기"**(테두리 버튼, `Linking.openURL`, `url` 없는 예전 보관 카드엔 안 보임), [공유][보관]. 바깥/X로 닫기 |
 
 ### components/profile
 | 파일 | 설명 |
@@ -165,7 +190,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | 파일 | 설명 |
 |---|---|
 | `useChat.ts` | 지난 대화 불러오기 + `send()`(빈 글·전송 중이면 false). 프로필을 `toProfilePayload`로 함께 보냄. 실패하면 에러 말풍선 |
-| `useVoiceRecorder.ts` | 녹음 → 웹소켓(`/ws/chat/{id}?token=`) → "STOP_RECORDING" → 인식 글자를 입력칸에. 웹·Expo Go는 안내만 |
+| `useVoiceRecorder.ts` | 녹음 → 웹소켓(`/ws/chat/{id}?token=`) → "STOP_RECORDING". 클로바가 말하는 동안 누적 글자를 보내면 입력칸을 실시간으로 채우고("듣고 있어요" 유지), `final: true`에 마무리. 16kHz·16bit·모노 PCM. 웹·Expo Go는 안내만 |
 | `useKeyboardHeight.ts` | 키보드 높이 (edge-to-edge라 안드로이드가 화면을 안 올려줌 → 그만큼 아래 여백) |
 
 ### api
@@ -180,19 +205,20 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `utils/storage.ts` | 저장소 한곳: `loadJSON/saveJSON/loadText/saveText`(AsyncStorage), `loadSecret/saveSecret/deleteSecret`(SecureStore, 웹은 AsyncStorage) |
 | `utils/dialog.ts` | `notify`, `confirm` (웹은 window.alert/confirm, 앱은 Alert) |
 | `utils/consent.ts` | `askSensitiveConsent()` 민감정보 동의 확인창 (문구 한곳) |
-| `utils/share.ts` | 대화 공유, 정책 카드 1장 공유 (RN `Share`) |
+| `utils/share.ts` | 대화 공유, 정책 카드 1장 공유 (RN `Share`, 복지로 링크 포함) |
 | `utils/audio.ts` | 마이크 모듈이 있을 때만 require (웹·Expo Go에선 import만 해도 에러) |
 | `utils/sessionManager.ts` (수정) | 예전 단일 세션 id (첫 상담방 이전용) |
 | `constants/config.ts` | `API_URL`(`EXPO_PUBLIC_API_URL` 또는 Render), `WS_URL` |
 | `constants/theme.ts` (수정) | `Palettes.default/colorBlind`(Okabe-Ito), `webNoOutline`(웹 입력 테두리 끄기) |
 | `constants/brand.ts` | 앱 이름(**임시 "복지 상담 챗봇"**), 소개 문구, 팀 SOLV |
 | `constants/regions.ts` | 시·도→시·군·구 (DB Province/District 이름 그대로, "-/전체/교육청" 제외, 광주·전남은 DB대로 "전남광주통합특별시") |
-| `types/chat.ts` | `PolicyCard`, `Message{cards?, detected?}` |
+| `types/chat.ts` | `PolicyCard{…, url?}`, `Message{cards?, detected?}` |
 | `types/profile.ts` | `UserProfile`, `HOUSEHOLD_TAGS`, `toProfilePayload`(장애는 동의 시만), `ageFromBirthYear`, `regionLabel` |
 
 ### 기타 수정
 - `app.json`: 스플래시 배경 크림색, `expo-secure-store` 플러그인
-- `package.json`: `expo-secure-store`, `expo-blur` 추가, `reset-project` 스크립트 삭제
+- `package.json`: `expo-secure-store`, `expo-blur`, `expo-dev-client` 추가, `reset-project` 스크립트 삭제
+- `eas.json`: development 프로필에 `"node": "24.12.0"`
 - `tsconfig.json`: 없는 파일(chatver2.tsx) 참조 삭제
 - `README.md`: 프로젝트 설명, `AGENTS.md`: 문서 버전 SDK 57
 - 삭제: Expo 템플릿 컴포넌트·훅 전부, 옛 `(tabs)` 화면들, `font-size-context`, `typographyOption`, `scripts/reset-project.js`
@@ -204,18 +230,18 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | 파일 | 설명 |
 |---|---|
 | `auth.py` (새로) | 기기 토큰 = `기기ID.HMAC서명`(서버 저장 불필요). `require_device`(401), `verify_token`, `thread_key(기기ID, 세션ID)`(세션ID 형식 검사, 400) |
-| `user_profile.py` (새로) | 앱이 보낸 프로필 처리: `UserProfileIn`, 나이→생애주기, 가구상황+장애→대상구분, `describe()`(AI 맥락 한 줄), `new_detected()`. 표준 모듈 `profile`과 이름 겹쳐서 이 이름 |
-| `api.py` (수정) | `POST /auth/device`. `/chat`·`/chat/history`·`/File`·웹소켓에 토큰 검사(웹소켓은 `?token=`, 실패 1008). 대화 저장 키 `기기ID:세션ID`. 요청 `profile`, 응답 `cards`·`detected`. 로그엔 글자 수만, 웹소켓 오류 내용 숨김 |
-| `nodes.py` (수정) | `build_policy_card`(청크 머리말 제거, 지자체는 요약을 내용으로), 검색에 `all_chunks`·지역 필터(EXISTS, 후보 30→120)·프로필 조건 보충(모호하면 생애주기 단어 덧붙임), `_card_answer`(CardIntro 구조화 출력: 소개+picks, 실패 시 전체), 상세 답변에도 카드 + `_plain_text`(마크다운 제거), `detected_tags` |
+| `user_profile.py` (새로) | 앱이 보낸 프로필 처리: `UserProfileIn`, 나이→생애주기, 가구상황+장애→대상구분, `describe()`(AI 맥락 한 줄), `new_detected()`, `TAG_EVIDENCE`/`has_evidence()`(대상구분별 근거 단어, 이중 확인용). 표준 모듈 `profile`과 이름 겹쳐서 이 이름 |
+| `api.py` (수정) | `POST /auth/device`. `/chat`·`/chat/history`·`/File`·웹소켓에 토큰 검사(웹소켓은 `?token=`, 실패 1008). 대화 저장 키 `기기ID:세션ID`. 요청 `profile`, 응답 `cards`·`detected`·`reply_type`. 카드에 `url`(복지로). 음성 웹소켓은 클로바 gRPC(`nest_pb2*.py`, 말하는 동안 누적 글자 전송, 끝나면 `final: true`). 로그엔 글자 수만, 오류 내용 숨김 |
+| `nodes.py` (수정) | `build_policy_card`(청크 머리말 제거, 지자체는 요약을 내용으로), 검색에 `all_chunks`·지역 필터(EXISTS, 후보 30→120)·프로필 조건 보충(모호하면 생애주기 단어 덧붙임), `_card_answer`(CardIntro 구조화 출력: 소개+picks, 실패 시 전체), 상세 답변에도 카드 + `_plain_text`(마크다운 제거), `detected_tags`, 모든 답변에 `reply_type`. **이중 확인**: 조건 추출 AI가 붙인 대상구분은 사용자 문장에 근거가 있을 때만 검색 조건(사용자 문장 전체)·저장 안내(이번 문장)에 씀 |
 | `prompts.py` (수정) | `CARD_INTRO_PROMPT` 추가(구체 질문엔 바로 답, 개인정보 언급 금지, 마크다운 금지, `{user_info}`) |
-| `state.py` (수정) | `CardIntro` 모델, `current_cards`, `user_profile`, `detected_tags` |
+| `state.py` (수정) | `CardIntro` 모델, `current_cards`, `user_profile`, `detected_tags`, `reply_type` |
 | `tasks.py` (수정) | 주석만 (키가 thread_key) |
-| `requirements.txt` (수정) | `openai` 추가 (원래 빠져 있었음) |
+| `requirements.txt` (수정) | `openai` 추가 (원래 빠져 있었음), 팀원이 `grpcio`·`protobuf` 추가 |
 
 **API 형식**
 - `POST /auth/device` → `{device_token}`
 - `POST /chat` (헤더 Bearer) `{session_id, user_message, profile?: {birth_year, province, district, household[], disability}}`
-  → `{bot_reply, cards: [{id,title,target,content,apply_method,department,support_type,digest}], detected: [...]}`
+  → `{bot_reply, reply_type, cards: [{id,title,target,content,apply_method,department,support_type,digest,url}], detected: [...]}`
 - `GET /chat/history/{session_id}` → `[{id,text,isUser,cards}]` (카드는 메시지 `additional_kwargs["policy_cards"]`에 저장, AI에는 안 보내짐 확인함)
 
 ---
@@ -224,12 +250,16 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 
 - **DB(Neo4j)**: 정책 4,779개. 대상·내용·신청방법이 나뉜 건 중앙 461개(10%)뿐, 지자체 4,318개는 "요약" 한 문장(평균 92자). 지자체 원본(`back/data_ext/DataList2.json`)에는 `servDtlLink`(복지로 상세 링크), 대상구분, 지역, 신청방식이 더 있는데 DB엔 안 들어감. 주제 태그 오류 있음(난방비가 "입양·위탁").
 - **Render**: 팀원 원래 백엔드(`reply_type` 있음, `/auth/device` 없음). 콜드스타트 있음.
-- `tasks.py` 대화 보관이 **5분**(테스트용, 원래 5일) → 오래 두면 기록이 사라짐.
-- 팀원 의도 분류 오류: "난방비 지원**도** 알려줘"를 상세요구로 분류.
-- 상세 답변 글이 아직 김 (팀원 `ANSWER_SYSTEM_PROMPT`의 "불릿·이모지로 정리" 규칙이 우선됨).
+- `tasks.py` 대화 보관이 **5분**(테스트용, 원래 5일) → 오래 두면 기록이 사라짐. 대화는 `MemorySaver`(서버 메모리)라 재시작하면 전부 사라짐 → 배포 전 DB 저장 방식 필요.
+- **조건 추출 AI 환각**: 근거 없이 대상구분(특히 목록 마지막 "보훈대상자")을 붙임. 원본 코드부터 있던 문제(welfare-eval v12 로그에도 있음, 예: "고령자 계속고용장려금 신청 방법" → 보훈대상자). 우리 쪽은 이중 확인으로 막음. 원본·평가에는 미반영.
+- **검색어에 이전 주제가 섞임**: "노인 일자리" 뒤 "주거 지원도 알려줘" → 검색어 "노인 일자리 및 주거 지원", 주제 조건도 `['주거','일자리']`로 쌓임 → 일자리 정책 위주로 검색되고 카드 1장. (팀원 EXTRACT 프롬프트 규칙 4 + `merge_condition`) 미해결.
+- 검색 결과에 같은 이름 정책이 두 번 나옴 (DB 중복, 예: 노인일자리 및 사회활동 지원사업).
+- 팀원 의도 분류 오류: "난방비 지원**도** 알려줘", "(수급자 대화 뒤) 주거 지원도 알려줘"를 상세요구로 분류.
+- 상세 답변 글이 아직 김 (팀원이 불릿·이모지 규칙은 지웠지만 "신청 방법" 질문에 여전히 긴 목록형). 사용자가 직접 확인 후 진행하기로 함.
 - 번호("3번 자세히")는 마지막 여러 장 목록 기준이라, 중간에 카드 1장 답변이 끼면 헷갈릴 수 있음.
 - 서울 송파구로 거르면 서울 지자체 정책이 거의 없음 (DB에 적음).
-- 팀원 커밋 `de8daf5`의 `MascotHeader.tsx` 이미지 경로 `../../assets/mascot/`는 `../assets/mascot/`이어야 할 것 같음.
+- 팀원은 이후 `mascot.tsx`(`../assets/mascot/`)로 경로를 고침. 마스코트는 보류 중.
+- Expo SDK 58이 나옴. 팀원 저장소가 57이라 혼자 올리지 않음 (팀원 상의).
 - 카드형 답변은 `welfare-eval` 채점(답변 글에서 정책명 추출, RAGAS)과 안 맞음 → 팀원 백엔드에 합칠 때 평가 코드도 `cards` 기준으로 바꿔야 함. (사용자: "일단 상관없음")
 - 웹 전용 이슈들: 입력 최소너비, `outlineStyle:none`, Switch 초록, Alert 미동작(dialog.ts), 버튼 안 버튼 금지, 개발 `#error-toast`.
 - React Compiler가 켜져 있어 `makeStyles(theme)`는 자동 캐시됨 (따로 useMemo 안 함).
@@ -238,14 +268,15 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 
 ## 7. 앞으로 할 일 (우선순위 순)
 
-1. **팀원 새 커밋 합치기** — `de8daf5` 마스코트(이미지 4장 + `MascotHeader`, `reply_type`별 표정·문구), `2bc719e` 키보드/`reply_type`.
-   - 우리 구조에 맞게 옮겨 넣기: 백엔드 `reply_type`은 `nodes.py` 답변 반환부와 겹침(수동 병합), 마스코트는 새 `chat.tsx`/컴포넌트 구조로 이식. 마스코트 경로 버그 확인.
-   - 원본 clone(`Welfare`)도 최신으로 맞추기 — 원본에는 미커밋 변경(front nav-skeleton, back 평가용)이 있으니 `welfare-eval/CLAUDE.md`의 업데이트 절차(stash → ff merge → pop) 따를 것.
-2. **팀원과 상의할 것** — Render에 우리 백엔드 배포(`DEVICE_TOKEN_SECRET` 환경변수, `openai` 패키지), `tasks.py` 5분→5일, 평가 기준 변경, 의도 분류 오류, 마스코트 경로, Neo4j Aura 유지.
-3. **폰에서 확인** (웹으로는 못 함) — 안드로이드 뒤로가기 후 마이크·공유 복귀, 키보드 위로 화면 올라감, 블러.
-4. **상세 답변 짧게** — 상세 전용 프롬프트를 따로 만들기.
-5. **카드에 "복지로에서 자세히 보기"** — `servDtlLink`를 DB에 추가(DB 적재 코드 수정 + 재적재, 팀원 상의).
-6. **앱 이름 확정**(`constants/brand.ts`) + 앱 아이콘·스플래시 이미지 교체(마스코트 활용 가능).
-7. **개인정보 처리방침 화면** (출시 전 필수: 수집 항목·목적·보유기간·국외이전(OpenAI 음성)·파기).
-8. **APK 빌드**(EAS 또는 Android Studio)로 진짜 앱 설치 + 마이크 확인 (OpenAI 키 필요).
-9. 지자체 정책 데이터 보강, 의도 분류 개선 (백엔드·팀원).
+1. **상세 답변 짧게** — 사용자가 직접 확인해 보고 진행하기로 함 (상세 전용 프롬프트).
+2. **검색 품질** (팀원 검색 로직, 평가 수치 영향 → 하나씩 고치고 실제 질문으로 확인)
+   - "~도 알려줘"면 사람 조건은 유지·주제는 교체하게 검색어 규칙 수정, 주제 조건 누적 방지
+   - "~도" 질문이 상세요구로 가는 의도 분류 오류
+   - 같은 이름 정책 중복 제거
+3. **팀원과 상의할 것** — 카드 방식(우리 방식으로 감), Render에 우리 백엔드 배포(`DEVICE_TOKEN_SECRET`·`CLOVA_SECRET`·`openai`), `tasks.py` 5분→5일, 대화 저장 DB화, 조건 추출 환각·이중 확인(평가 다시 돌리기), 평가 기준을 `cards`로, Neo4j Aura 유지, SDK 58 업그레이드 시점.
+4. **음성 화면** — 팀원 `VoicePanel`(듣는 중 화면, 음량 표시)을 우리 구조로 옮길지 결정. 마스코트는 보류.
+5. **방화벽 정리**(사용자가 나중에) — 관리자 PowerShell: `Get-NetFirewallRule -DisplayName "python.exe","Node.js JavaScript Runtime" | Set-NetFirewallRule -RemoteAddress LocalSubnet`
+6. **앱 이름 확정**(`constants/brand.ts`, 패키지명 `com.anonymous...` 변경) + 아이콘·스플래시.
+7. **개인정보 처리방침 화면** (출시 전 필수: 수집 항목·목적·보유기간·국외/위탁(네이버 클로바 음성, Upstage)·파기).
+8. **배포**: 백엔드는 클라우드(Render 등, https), 앱은 production 빌드(AAB)로 Play 스토어. PC 서버는 필요 없음.
+9. 지자체 정책 데이터 보강 (백엔드·팀원).
