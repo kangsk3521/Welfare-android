@@ -8,19 +8,25 @@
 
 ## 실행
 
+마이크(음성 인식)가 네이티브 모듈이라 Expo Go가 아닌 **개발용 빌드**(`expo-dev-client`)로 실행합니다.
+
 ```bash
 npm install
-npx expo start              # 웹: w 키 또는 http://localhost:8081, 폰: Expo Go(SDK 57)로 접속
+npx eas-cli build -p android --profile development   # 처음 한 번, 네이티브 패키지를 바꿨을 때만 다시
+npx expo start --dev-client                          # 폰의 개발용 앱에서 접속. JS 수정은 바로 반영
 ```
 
-서버 주소는 `EXPO_PUBLIC_API_URL` 환경변수로 바꿀 수 있습니다 (없으면 Render 배포 주소).
+서버 주소는 `EXPO_PUBLIC_API_URL` 환경변수로 바꿉니다 (없으면 `constants/config.ts`의 Render 주소).
 
-```bash
-# PowerShell 예: 내 PC에서 띄운 백엔드에 붙이기
-$env:EXPO_PUBLIC_API_URL = 'http://192.168.0.7:8000'; npx expo start
+```powershell
+# PowerShell 예: Render에 올린 서버
+$env:EXPO_PUBLIC_API_URL = 'https://<서비스 이름>.onrender.com'; npx expo start --dev-client
+
+# 내 PC 서버(127.0.0.1:8000)를 USB로 폰에 연결할 때 (와이파이에 포트를 열지 않음)
+adb reverse tcp:8000 tcp:8000; adb reverse tcp:8081 tcp:8081
+$env:NODE_OPTIONS = '--dns-result-order=ipv4first'; $env:EXPO_PUBLIC_API_URL = 'http://localhost:8000'
+npx expo start --dev-client --localhost
 ```
-
-마이크(음성 인식)는 네이티브 모듈이라 웹·Expo Go에서는 동작하지 않고, 안드로이드 앱으로 빌드해야 씁니다 (`npx expo run:android`).
 
 ## 화면
 

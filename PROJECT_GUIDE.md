@@ -9,7 +9,7 @@
 
 - **원본 clone(`welfare-android/Welfare`)은 건드리지 않는다.** 작업은 전부 이 복사본 `welfare-android/welfare-local`에서 한다.
   - 원본은 팀원 저장소 `github.com/1062goodman/Welfare` 그대로. `welfare-eval`(성능 평가)이 원본을 쓴다.
-- **푸시 금지.** 이 복사본의 원격(origin)이 팀원 저장소라 `git push`하면 팀원 저장소로 간다. 커밋은 사용자가 요청할 때만.
+- **origin(팀원 저장소)에는 푸시 금지.** 2026-11-13부터 원격 `mine` = 사용자 private 저장소 `github.com/kangsk3521/Welfare-android`(브랜치 `main` ← 로컬 `feature/frontend-mockup`, upstream도 `mine/main`). Render 배포용. 푸시는 `mine`에만, 사용자가 요청할 때만. 커밋도 요청할 때만.
 - 커밋할 때 `back/GraphRAG/*`, `back/rag/*`의 수정 4개는 **빼고** 커밋한다 (평가용 임시 수정, 원래 커밋하지 않는 것).
 - `front/welfare-chat-app/app.json`의 `owner: kangsk3521`·`extra.eas.projectId`(사용자 개인 Expo 프로젝트)도 **빼고** 커밋한다. 팀원 원래 값은 projectId `798e2046-…`였음.
 - **PC 서버를 와이파이/인터넷에 열지 않는다** (`--host 0.0.0.0`, `--lan` 금지). 폰 테스트는 USB(adb reverse)로 한다 (2장). 예전에 공유기 DMZ 때문에 8000 포트가 인터넷에 노출돼 스캐너 요청이 들어온 적 있음(29건 전부 404, 피해 없음). DMZ는 2026-11-10 사용자가 끔 (마인크래프트 25565 포트포워드만 남김).
