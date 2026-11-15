@@ -476,6 +476,13 @@ def _with_card_text(search_results: str, cards: list) -> str:
     return "".join(parts)
 
 
+def _tag(msg, reply_type: str):
+    """답변 종류를 메시지에도 적어 둔다 → 대화 기록(history)을 다시 불러와도 앱이 같은 마스코트 안내를 보여준다.
+    (additional_kwargs는 AI에게 다시 보내지지 않는다)"""
+    msg.additional_kwargs["reply_type"] = reply_type
+    return msg
+
+
 def _short(text: str, limit: int) -> str:
     """카드 요점 한 줄 다듬기: 마크다운·따옴표·끝 마침표 제거, 너무 길면 자름"""
     text = _plain_text(text or "").replace("\n", " ").strip().strip("\"'").rstrip(".")
@@ -510,7 +517,7 @@ def _card_answer(messages, search_results, cards, user_info="없음"):
         shown.append(card)
     print(f"카드 {len(shown)}개 표시: {[c['title'] for c in shown]}")
 
-    response = AIMessage(content=intro, additional_kwargs={"policy_cards": shown})
+    response = AIMessage(content=intro, additional_kwargs={"policy_cards": shown, "reply_type": "list"})
     names = [c["title"] for c in shown]
     return {
         "messages": [response],
@@ -532,9 +539,9 @@ def generate_answer_node(state: AgentState):
 
     if search_results.startswith("조건에 맞는 복지 정책을 찾지 못했습니다"):
         msg = "조건에 맞는 정책을 찾지 못했습니다. 상황을 조금 다르게 말씀해 주시면 다시 찾아볼게요."
-        return {"messages": [AIMessage(content=msg)], "recommendation_history": [[]], "reply_type":"no_result"}
+        return {"messages": [_tag(AIMessage(content=msg), "no_result")], "recommendation_history": [[]], "reply_type":"no_result"}
     if search_results.startswith(("이전에 추천해", "해당 정책의 상세 정보")):
-        return {"messages": [AIMessage(content=search_results)], "reply_type": "detail_fail"}
+        return {"messages": [_tag(AIMessage(content=search_results), "detail_fail")], "reply_type": "detail_fail"}
 
     # 카드형 답변: 정책 목록을 보여주는 턴이면 정책 내용은 앱 카드로 보여주고, AI는 짧은 소개와 보여줄 정책만 고른다
     cards = state.get("current_cards") or []
@@ -582,14 +589,14 @@ def generate_answer_node(state: AgentState):
 
 
     if intent != "상세요구":   # 목록을 보여준 턴
-        return {"messages": [response],
+        return {"messages": [_tag(response, "list")],
                 "recommendation_history": [state.get("current_recommended_names", [])],
                 "reply_type": "list"}
 
     # 상세 답변: 물어본 정책 카드를 답변에 붙인다 (목록 답변처럼 /chat 응답·대화 기록에 함께 실림)
     if cards:
         response = AIMessage(content=_plain_text(response.content), additional_kwargs={"policy_cards": cards})
-    return {"messages": [response], "reply_type": "detail"}
+    return {"messages": [_tag(response, "detail")], "reply_type": "detail"}
     
 
 
@@ -606,7 +613,7 @@ def general_chat_node(state: AgentState):
     ])
     
     response = (prompt | chat_llm).invoke({"messages": state["messages"]})
-    return {"messages": [response], "reply_type":"general"}
+    return {"messages": [_tag(response, "general")], "reply_type":"general"}
 
 
 # --------------------------------------------------------- 
@@ -616,7 +623,7 @@ def block_attack_node(state: AgentState):
     print("프롬프트 공격 방어")
 
     response = "서비스 검색과 무관한 지시, 시스템 설정을 변경하려는 요청은 응답할수없습니다."
-    return {"messages": [AIMessage(content=response)],"reply_type":"blocked"}
+    return {"messages": [_tag(AIMessage(content=response), "blocked")],"reply_type":"blocked"}
 
 
 
@@ -628,5 +635,5 @@ def ask_for_details_node(state: AgentState):
         ("system", ASK_DETAILS_PROMPT),
         MessagesPlaceholder(variable_name="messages")
     ]) | chat_llm).invoke({"messages": state["messages"]})
-    return {"messages": [response], "ask_count": state.get("ask_count", 0) + 1, "reply_type":"ask"}
+    return {"messages": [_tag(response, "ask")], "ask_count": state.get("ask_count", 0) + 1, "reply_type":"ask"}
 

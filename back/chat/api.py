@@ -108,6 +108,7 @@ class MessageHistoryResponse(BaseModel):
     text: str
     isUser: bool
     cards: List[PolicyCard] = []
+    reply_type: Optional[str] = None   # 챗봇 답변 종류 (nodes._tag가 메시지에 적어 둠, 예전 메시지는 없음)
 
 @router.get("/chat/history/{session_id}", response_model=List[MessageHistoryResponse])
 def get_chat_history(session_id: str, device_id: str = Depends(require_device)):
@@ -128,6 +129,7 @@ def get_chat_history(session_id: str, device_id: str = Depends(require_device)):
             text=msg.content,
             isUser=msg.type == "human", # human이면 True(내 메시지), ai면 False(챗봇)
             cards=message_cards(msg),
+            reply_type=getattr(msg, "additional_kwargs", {}).get("reply_type"),
         ))
         
     return history

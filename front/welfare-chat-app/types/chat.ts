@@ -17,9 +17,10 @@ export type PolicyCard = {
 // 대화창에 표시되는 메시지 한 개
 export type Message = {
   id: string;
-  text: string; // 카드가 있으면 카드 위에 보여줄 짧은 소개
+  text: string; // 답변 글 (정책 목록 답변이면 AI 소개. 화면에서는 마스코트 안내로 대신함)
   isUser: boolean; // true: 내가 보낸 말, false: 챗봇 답변
   isError?: boolean; // 서버 연결 실패 안내 말풍선
+  replyType?: string; // 답변 종류 (list, detail, ask, no_result, detail_fail, blocked, general) → 마스코트 안내
   cards?: PolicyCard[]; // 추천 정책 카드 (검색 답변일 때만)
   detected?: string[]; // 이 대화에서 새로 알게 된 정보 (예: 저소득, 장애인) → "내 정보에 저장할까요?"
 };

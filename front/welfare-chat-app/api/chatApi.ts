@@ -65,12 +65,19 @@ interface HistoryResponse {
   text: string;
   isUser: boolean;
   cards?: PolicyCardResponse[];
+  reply_type?: string | null;
 }
 
 export const getChatHistory = async (sessionId: string): Promise<Message[]> => {
   try {
     const response = await client.get<HistoryResponse[]>(`/chat/history/${sessionId}`);
-    return response.data.map((m) => ({ id: m.id, text: m.text, isUser: m.isUser, cards: (m.cards ?? []).map(toPolicyCard) }));
+    return response.data.map((m) => ({
+      id: m.id,
+      text: m.text,
+      isUser: m.isUser,
+      cards: (m.cards ?? []).map(toPolicyCard),
+      replyType: m.reply_type ?? undefined,
+    }));
   } catch (error) {
     console.error('대화 내역 불러오기 실패', error);
     return [];
@@ -86,6 +93,7 @@ interface ChatRequest {
 }
 interface ChatResponse {
   bot_reply: string; // 카드가 있으면 카드 위에 보여줄 짧은 소개
+  reply_type?: string; // 답변 종류 → 앱에서 마스코트 안내
   cards?: PolicyCardResponse[]; // 추천 정책 카드 (검색 답변일 때만)
   detected?: string[]; // 대화에서 새로 알게 된 정보 (내 정보에 아직 없는 것)
 }
@@ -94,11 +102,12 @@ export const sendChatMessage = async (
   sessionId: string,
   userMessage: string,
   profile: ProfilePayload | null
-): Promise<{ reply: string; cards: PolicyCard[]; detected: string[] }> => {
+): Promise<{ reply: string; replyType?: string; cards: PolicyCard[]; detected: string[] }> => {
   const requestData: ChatRequest = { session_id: sessionId, user_message: userMessage, ...(profile ? { profile } : {}) };
   const response = await client.post<ChatResponse>('/chat', requestData);
   return {
     reply: response.data.bot_reply,
+    replyType: response.data.reply_type,
     cards: (response.data.cards ?? []).map(toPolicyCard),
     detected: response.data.detected ?? [],
   };

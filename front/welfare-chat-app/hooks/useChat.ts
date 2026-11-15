@@ -41,7 +41,7 @@ export function useChat(sessionId: string) {
 
     // 폰에 저장된 내 기본 정보를 맥락으로 함께 보낸다 (서버는 저장하지 않음)
     sendChatMessage(sessionId, text, toProfilePayload(profile))
-      .then(({ reply, cards, detected }) => addMessage({ text: reply, isUser: false, cards, detected }, 'b'))
+      .then(({ reply, replyType, cards, detected }) => addMessage({ text: reply, isUser: false, replyType, cards, detected }, 'b'))
       .catch((error) => {
         console.error('챗봇 응답 실패:', error);
         addMessage({ text: SEND_FAILED_TEXT, isUser: false, isError: true }, 'e');

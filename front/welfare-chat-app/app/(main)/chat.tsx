@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { PolicyDetailModal } from '@/components/cards/PolicyDetailModal';
-import { CardsAnswer } from '@/components/chat/CardsAnswer';
+import { BotAnswer } from '@/components/chat/BotAnswer';
 import { ChatInputBar } from '@/components/chat/ChatInputBar';
 import { ChatIntro } from '@/components/chat/ChatIntro';
 import { MessageBubble, TypingBubble } from '@/components/chat/MessageBubble';
@@ -21,7 +21,7 @@ import { shareMessages } from '@/utils/share';
 //
 //   ┌ ChatIntro (안내 + 추천칩) ┐
 //   │ MessageBubble ...         │  ← FlatList
-//   │ CardsAnswer (소개 + 정책 카드들) │  카드를 누르면 PolicyDetailModal (블러 + 확대)
+//   │ BotAnswer (마스코트 안내 + 글 + 정책 카드들) │  카드를 누르면 PolicyDetailModal (블러 + 확대)
 //   │        MicButton (떠 있음) │  누르면 VoiceModal (가운데 음성 창, 다 말하면 바로 전송)
 //   └ ChatInputBar (입력·전송·공유)┘
 
@@ -79,10 +79,10 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
           data={messages}
           renderItem={({ item }) => (
             <View>
-              {item.cards?.length ? (
-                <CardsAnswer message={item} sessionId={sessionId} onOpen={setOpenedCard} />
-              ) : (
+              {item.isUser ? (
                 <MessageBubble message={item} />
+              ) : (
+                <BotAnswer message={item} sessionId={sessionId} onOpen={setOpenedCard} />
               )}
               {/* 대화에서 새로 알게 된 정보가 있으면 "내 정보에 저장할까요?" */}
               {item.detected && item.detected.length > 0 && (

@@ -1,7 +1,6 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -12,8 +11,9 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated';
 
+import { mascotImage } from '@/constants/mascot';
 import { Palette } from '@/constants/theme';
-import { useSettings, useTheme } from '@/contexts/settings-context';
+import { useGrayscale, useSettings, useTheme } from '@/contexts/settings-context';
 import { VoicePhase } from '@/hooks/useVoiceRecorder';
 
 // 마이크를 누르면 화면 가운데 뜨는 음성 창.
@@ -39,9 +39,10 @@ export function VoiceModal({
   const theme = useTheme();
   const styles = makeStyles(theme);
   const { fontSize } = useSettings();
+  const gray = useGrayscale();
   const scrollRef = useRef<ScrollView>(null);
 
-  // 듣는 동안 마이크 뒤 원이 천천히 커졌다 작아진다 (움직임 줄이기 설정이면 멈춤)
+  // 듣는 동안 마스코트 뒤 원이 천천히 커졌다 작아진다 (움직임 줄이기 설정이면 멈춤)
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(1);
   const listening = phase === 'listening';
@@ -69,9 +70,7 @@ export function VoiceModal({
         <Animated.View entering={ZoomIn.duration(200)} style={styles.sheet}>
           <View style={styles.micArea}>
             <Animated.View style={[styles.pulse, listening && styles.pulseActive, pulseStyle]} />
-            <View style={[styles.mic, listening && styles.micActive]}>
-              <MaterialIcons name="mic" size={34} color={theme.onAccent} />
-            </View>
+            <Image source={mascotImage('listen', gray)} style={styles.mascot} resizeMode="contain" accessible={false} />
           </View>
 
           <Text style={[styles.title, { fontSize: fontSize + 2 }]} accessibilityLiveRegion="polite">
@@ -136,24 +135,16 @@ const makeStyles = (t: Palette) =>
       shadowOffset: { width: 0, height: 8 },
       elevation: 10,
     },
-    micArea: { width: MIC * 1.4, height: MIC * 1.4, justifyContent: 'center', alignItems: 'center' },
+    micArea: { width: MIC * 1.8, height: MIC * 1.8, justifyContent: 'center', alignItems: 'center' },
     pulse: {
       position: 'absolute',
-      width: MIC * 1.2,
-      height: MIC * 1.2,
-      borderRadius: MIC * 0.6,
+      width: MIC * 1.4,
+      height: MIC * 1.4,
+      borderRadius: MIC * 0.7,
       backgroundColor: t.chip,
     },
     pulseActive: { backgroundColor: t.recording, opacity: 0.22 },
-    mic: {
-      width: MIC,
-      height: MIC,
-      borderRadius: MIC / 2,
-      backgroundColor: t.accent,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    micActive: { backgroundColor: t.recording },
+    mascot: { width: MIC * 1.6, height: MIC * 1.6 },
     title: { color: t.subText, fontWeight: '700' },
     textBox: { alignSelf: 'stretch', maxHeight: 240, minHeight: 110 },
     textBoxContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: 6 },

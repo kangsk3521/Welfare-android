@@ -114,14 +114,14 @@ app/                       화면 (expo-router: 파일 경로 = 주소)
 components/
   common/   AppHeader, Chip, ToggleSwitch
   start/    IntroScreen, OnboardingScreen
-  chat/     ChatInputBar, MicButton, VoiceModal, MessageBubble, ChatIntro, CardsAnswer, SaveProfilePrompt
+  chat/     ChatInputBar, MicButton, VoiceModal, MessageBubble, ChatIntro, BotAnswer, MascotHeader, SaveProfilePrompt
   cards/    PolicyCardView, PolicyDetailModal
   profile/  BirthYearInput, RegionPicker, HouseholdPicker, ProfileEditor
 contexts/   settings, profile, sessions, cards (앱 전체 상태 + 폰 저장)
 hooks/      useChat, useVoiceRecorder, useKeyboardHeight
 api/        chatApi, auth
 utils/      storage, dialog, consent, share, audio
-constants/  config, theme, brand, regions
+constants/  config, theme, brand, regions, mascot
 types/      chat, profile
 ```
 Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions → Cards → Theme → Stack.
@@ -139,7 +139,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `(main)/index.tsx` (새로) | `/` → `/chat` 리다이렉트 |
 | `(main)/chat.tsx` (새로) | 대화창 조립. `ChatScreen`이 현재 상담방 id를 `key`로 `ChatRoom`을 새로 그림(방이 바뀌면 메시지 섞임 방지). 메시지 종류별 렌더(카드 답변/말풍선) + "저장할까요?" 안내. 맨 아래 스크롤은 메시지 수·작성중·키보드·입력칸 선택이 바뀔 때만 50/300/700ms 세 번 (카드 거절로 높이만 바뀔 땐 안 내림 → 보던 자리 유지). FlatList가 아니라 ScrollView에 직접 `scrollToEnd` 요청(여백 바뀐 직후 덜 내려가는 문제) |
 | `(main)/list.tsx` (새로) | 탭 [상담 목록 / 보관한 혜택 N]. 상담방: 별=즐겨찾기(위로 정렬), 누르면 그 방으로, 길게 누르면 삭제, 하단 "+ 새 상담"(빈 방 있으면 재사용). 보관함: 보관 카드 + 확대 |
-| `(main)/settings.tsx` (새로) | 글자크기(12~28), 색약모드, `ProfileEditor` |
+| `(main)/settings.tsx` (새로) | 글자크기(12~28), 색약모드(스위치를 켜면 녹색맹·적색맹·전색맹·청황색맹 칩), `ProfileEditor` |
 
 ### components/common
 | 파일 | 설명 |
@@ -159,10 +159,11 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 |---|---|
 | `ChatInputBar.tsx` | 하단 입력줄 [+ 입력칸][전송][공유]. 여러 줄 자동 늘어남(최대 5줄, 이후 칸 안 스크롤; 웹은 높이를 0으로 줄였다 재는 방식). 웹 Enter=전송·Shift+Enter=줄바꿈·한글 조합 중 Enter 무시. 선택 시 공유 숨기고 입력칸 확장, 선택 해제는 0.2초 지연(웹 전송 클릭 빗나감 방지). `keyboardDidHide`에 blur(안드로이드 뒤로가기). `minWidth:0`(웹 입력창 기본 최소너비), `webNoOutline` |
 | `MicButton.tsx` | 채팅 목록 위에 떠 있는 마이크(배경 투명, `pointerEvents: box-none`) + 잠깐 뜨는 안내(`notice`, 3초). 누르면 `VoiceModal`. `MIC_SPACE=94`만큼 목록 아래 여백 |
-| `VoiceModal.tsx` (새로) | 마이크를 누르면 가운데 뜨는 음성 창: 블러 배경, 듣는 중 원 애니메이션(움직임 줄이기면 정지), 알아들은 말을 큰 글씨(글자크기+8)로, [취소] [다 말했어요]. 바깥 터치로 안 닫힘, 뒤로가기=취소 |
+| `VoiceModal.tsx` (새로) | 마이크를 누르면 가운데 뜨는 음성 창: 블러 배경, 듣는 중 마스코트(`listen`) + 뒤 원 애니메이션(움직임 줄이기면 정지), 알아들은 말을 큰 글씨(글자크기+8)로, [취소] [다 말했어요]. 바깥 터치로 안 닫힘, 뒤로가기=취소 |
 | `MessageBubble.tsx` | 말풍선(내 말/봇/에러) + `TypingBubble`("답변을 작성하고 있어요…") |
 | `ChatIntro.tsx` | 안내 박스 + 대화 시작 전 추천 칩 4개(누르면 "○○ 알려줘" 전송) |
-| `CardsAnswer.tsx` | 카드형 답변 = 짧은 소개 말풍선 + 정책 수만큼 카드 |
+| `BotAnswer.tsx` (2026-11-15) | 챗봇 답변 = [마스코트 안내] + [글 말풍선] + [카드]. 서버 `reply_type`별: list=성공 마스코트 "복지정보를 찾았어요!"+카드(AI 소개 글 숨김), detail=성공+글+카드, ask=fail "정보가 더 필요해요!"+글, no_result=fail(글 숨김), detail_fail=fail+글, blocked=no(글 숨김), general·예전 메시지=말풍선만 |
+| `MascotHeader.tsx` (2026-11-15) | 마스코트(90px)가 위에 걸친 안내 말풍선(`head` 색, 왼쪽 위 모서리 각짐). 디자인 시안 `mockup/des_1`의 ai-head |
 | `SaveProfilePrompt.tsx` | 서버가 감지한 정보(저소득·장애인 등) "내 정보에 저장할까요?" 칩 선택 + [저장][이번만]. 장애인은 `askSensitiveConsent()` 후 저장 |
 
 ### components/cards
@@ -182,7 +183,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 ### contexts (앱 전체 상태, 폰 저장)
 | 파일 | 저장 키 | 설명 |
 |---|---|---|
-| `settings-context.tsx` | `@app_settings` (일반) | 글자크기·색약모드, `useTheme()`(일반/색약 팔레트). 예전 평문 사용자 메모는 읽을 때 버림 |
+| `settings-context.tsx` | `@app_settings` (일반) | 글자크기·색약모드·색약 종류(`colorBlindType`, 기본 녹색맹), `useTheme()`(일반/종류별 팔레트), `useGrayscale()`(전색맹이면 마스코트 흑백). 예전 평문 사용자 메모는 읽을 때 버림 |
 | `profile-context.tsx` | `user_profile` (**암호화**), `@onboarding_done` (일반) | 내 기본 정보. `updateProfile`, `setSensitiveConsent`(철회 시 장애 정보 삭제), `clearProfile`, `finishOnboarding`, `loaded` |
 | `sessions-context.tsx` | `@app_sessions`, `@app_current_session` | 상담방 목록 `{id,title,createdAt,starred}`. 첫 메시지가 제목. 처음 켜면 빈 방 하나 |
 | `cards-context.tsx` | `@saved_cards`, `@hidden_cards` | 보관 카드(내용 통째로), 숨긴 카드(`세션id:카드id`) |
@@ -209,7 +210,8 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `utils/share.ts` | 대화 공유, 정책 카드 1장 공유 (RN `Share`, 복지로 링크 포함) |
 | `utils/audio.ts` | 마이크 모듈이 있을 때만 require (웹·Expo Go에선 import만 해도 에러) |
 | `constants/config.ts` | `API_URL`(`EXPO_PUBLIC_API_URL` 또는 Render), `WS_URL` |
-| `constants/theme.ts` (수정) | `Palettes.default/colorBlind`(Okabe-Ito), `webNoOutline`(웹 입력 테두리 끄기) |
+| `constants/theme.ts` (수정) | `Palettes.default` + 색약 4종 `deutan/protan/achroma/tritan`(디자인 시안 `mockup/des_1/color` 화면 12장에서 색을 뽑음, 3장씩 녹·적·전·청황), `COLOR_BLIND_TYPES`, `head`(마스코트 말풍선 색), `webNoOutline` |
+| `constants/mascot.ts` (2026-11-15) | 마스코트 그림 `success/fail/no/listen` + 흑백(`_gray`). `assets/mascot/`는 시안 그림을 360px로 줄인 것 |
 | `constants/brand.ts` | 앱 이름(**임시 "복지 상담 챗봇"**), 소개 문구, 팀 SOLV |
 | `constants/regions.ts` | 시·도→시·군·구 (DB Province/District 이름 그대로, "-/전체/교육청" 제외, 광주·전남은 DB대로 "전남광주통합특별시") |
 | `types/chat.ts` | `PolicyCard{…, url?, isLocal?, what?, who?}`, `Message{cards?, detected?}` |
@@ -232,7 +234,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `auth.py` (새로) | 기기 토큰 = `기기ID.HMAC서명`(서버 저장 불필요). `require_device`(401), `verify_token`, `thread_key(기기ID, 세션ID)`(세션ID 형식 검사, 400) |
 | `user_profile.py` (새로) | 앱이 보낸 프로필 처리: `UserProfileIn`, 나이→생애주기, 가구상황+장애→대상구분, `describe()`(AI 맥락 한 줄), `new_detected()`, `TAG_EVIDENCE`/`has_evidence()`(대상구분별 근거 단어, 이중 확인용). 표준 모듈 `profile`과 이름 겹쳐서 이 이름 |
 | `api.py` (수정) | `POST /auth/device`. `/chat`·`/chat/history`·`/File`·웹소켓에 토큰 검사(웹소켓은 `?token=`, 실패 1008). 대화 저장 키 `기기ID:세션ID`. 요청 `profile`, 응답 `cards`·`detected`·`reply_type`. 카드에 `url`(복지로). 음성 웹소켓은 클로바 gRPC(`nest_pb2*.py`, 말하는 동안 누적 글자 전송, 끝나면 `final: true`). 로그엔 글자 수만, 오류 내용 숨김 |
-| `nodes.py` (수정) | `build_policy_card`(청크 머리말 제거, 지자체는 요약을 내용으로), 검색에 `all_chunks`·지역 필터(EXISTS, 후보 30→120)·프로필 조건 보충(모호하면 생애주기 단어 덧붙임), `_card_answer`(CardIntro 구조화 출력: 소개+picks+카드별 요점 `summaries`(what 25자/who 20자, 서버에서 40/30자로 자름), 실패 시 전체·요점 없음, 토큰 사용량 로그), `_with_card_text`(요점용으로 검색 결과에 빠진 지원대상·서비스내용을 300자만 보충), `is_local`, 상세 답변에도 카드 + `_plain_text`(마크다운 제거), `detected_tags`, 모든 답변에 `reply_type`. **이중 확인**: 조건 추출 AI가 붙인 대상구분은 사용자 문장에 근거가 있을 때만 검색 조건(사용자 문장 전체)·저장 안내(이번 문장)에 씀 |
+| `nodes.py` (수정) | `build_policy_card`(청크 머리말 제거, 지자체는 요약을 내용으로), 검색에 `all_chunks`·지역 필터(EXISTS, 후보 30→120)·프로필 조건 보충(모호하면 생애주기 단어 덧붙임), `_card_answer`(CardIntro 구조화 출력: 소개+picks+카드별 요점 `summaries`(what 25자/who 20자, 서버에서 40/30자로 자름), 실패 시 전체·요점 없음, 토큰 사용량 로그), `_with_card_text`(요점용으로 검색 결과에 빠진 지원대상·서비스내용을 300자만 보충), `is_local`, 상세 답변에도 카드 + `_plain_text`(마크다운 제거), `detected_tags`, 모든 답변에 `reply_type`(+ `_tag`로 메시지 `additional_kwargs`에도 적어서 `/chat/history`가 `reply_type`을 돌려줌 → 다시 불러와도 마스코트 유지). **이중 확인**: 조건 추출 AI가 붙인 대상구분은 사용자 문장에 근거가 있을 때만 검색 조건(사용자 문장 전체)·저장 안내(이번 문장)에 씀 |
 | `prompts.py` (수정) | `CARD_INTRO_PROMPT` 추가(구체 질문엔 바로 답, 카드별 요점, 개인정보 언급 금지, 마크다운 금지, `{user_info}`) |
 | `state.py` (수정) | `CardIntro`(+`CardSummary`) 모델, `current_cards`, `user_profile`, `detected_tags`, `reply_type` |
 | `tasks.py` (수정) | 주석만 (키가 thread_key) |
@@ -254,30 +256,30 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 - **앱은 Expo 템플릿 위에 화면이 하나씩 붙어 있던 구조를 역할별 폴더로 새로 짰다.** 화면(app) / 부품(components) / 공용 상태(contexts) / 동작(hooks) / 서버 통신(api) / 도구(utils). 팀원 화면 코드는 대부분 새 구조로 옮기거나 대체했다.
 
 ### 서버 (back/chat)
-| 무엇을 | 어떻게 | 왜 |
-|---|---|---|
-| **기기 인증** (`auth.py` 새로) | 앱이 처음 켜질 때 `POST /auth/device`로 토큰(기기ID+HMAC 서명)을 받고, 모든 요청에 `Bearer` 토큰. 대화 저장 키를 `기기ID:세션ID`로 | 원래는 세션 ID만 알면 남의 대화 기록(`/chat/history`)을 볼 수 있었다. 유료 API(Upstage·클로바)를 아무나 쓰는 것도 막는다. 서명 방식이라 토큰을 DB에 저장할 필요가 없다 |
-| **카드형 답변** (`nodes.py`, `prompts.py`) | 검색된 정책을 DB 원문으로 카드 데이터로 만들고(`build_policy_card`), AI는 짧은 소개·보여줄 카드 선택·카드별 요점만 한다(`_card_answer`, `CARD_INTRO_PROMPT`) | 정책 내용을 AI가 글로 다시 쓰면 길고, 틀릴 수 있다(환각). 원문은 카드 확대 화면에 그대로 둔다. 팀원도 카드뉴스(`build_cards_node`)를 만들었는데, 병합 때 사용자가 우리 방식으로 결정했다. 팀원 것에서 복지로 링크와 `reply_type`은 가져왔다 |
-| **카드 요점** (`CardSummary`) | 카드 고르는 같은 AI 호출에서 카드마다 "무엇을(25자)·누가(20자)"도 받는다 | 원문 앞부분을 잘라 보여주면 핵심(금액·대상)이 묻혀서 한눈에 안 들어왔다. 호출 수는 그대로, 목록 답변 토큰 약 +25~40%, 약 +1.3초 (측정값). 나중엔 DB에 미리 저장하는 방식(B)이 더 좋다 |
-| **내 정보 반영** (`user_profile.py` 새로) | 앱이 보낸 나이·지역·가구 상황으로 ① 지역 필터(중앙 정책 + 우리 지역 정책) ② 생애주기·대상구분 조건 보충 ③ AI 소개 맥락 | "받을 수 있는 혜택 있어?"처럼 조건 없는 질문에도 되묻지 않고 바로 찾게. 지역 필터 때문에 후보를 30→120개로 늘렸다 |
-| **대화 속 정보 감지** (`detected_tags`, `new_detected`) | 대화에서 저소득·장애 등을 말하면 응답 `detected`로 알려주고 앱이 "저장할까요?"를 묻는다 | 사용자가 설정 화면에 가지 않아도 내 정보를 채울 수 있게 |
-| **조건 추출 이중 확인** (`has_evidence`) | 조건 추출 AI가 붙인 대상구분은 사용자가 쓴 문장에 근거 단어가 있을 때만 쓴다 | 원래 코드부터 AI가 근거 없이 "보훈대상자" 등을 붙였다(평가 v12 로그에도 있음). 저장 안내가 엉뚱하게 뜨고 검색 순위도 조금 틀어졌다 |
-| **상세 답변에도 카드** | "1번 자세히"에 그 정책 카드를 붙이고 마크다운 기호를 지운다(`_plain_text`) | 앱 말풍선은 마크다운을 안 그려서 `**`, `###`이 그대로 보였다 |
-| **음성 인식 보안** (`api.py`) | 팀원 클로바(gRPC) 그대로 + 웹소켓 토큰 검사(`?token=`, 실패 1008), 로그엔 글자 수만, 오류 내용은 앱에 안 보냄 | 음성·대화는 개인정보(건강·소득)가 섞일 수 있고, 서버 내부 오류를 밖에 보여줄 필요가 없다 |
-| `requirements.txt` | `openai` 추가 | 원래 코드가 쓰는데 목록에 빠져 있어서 새 환경에서 서버가 안 떴다 |
-| `tasks.py` | 주석만 | 저장 키가 `기기ID:세션ID`로 바뀐 것 표시. **5분 보관(테스트용)은 그대로** 두었다 (팀원 결정 필요) |
+| 무엇을                                              | 어떻게                                                                                                                   | 왜                                                                                                                                                         |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **기기 인증** (`auth.py` 새로)                         | 앱이 처음 켜질 때 `POST /auth/device`로 토큰(기기ID+HMAC 서명)을 받고, 모든 요청에 `Bearer` 토큰. 대화 저장 키를 `기기ID:세션ID`로                       | 원래는 세션 ID만 알면 남의 대화 기록(`/chat/history`)을 볼 수 있었다. 유료 API(Upstage·클로바)를 아무나 쓰는 것도 막는다. 서명 방식이라 토큰을 DB에 저장할 필요가 없다                                          |
+| **카드형 답변** (`nodes.py`, `prompts.py`)            | 검색된 정책을 DB 원문으로 카드 데이터로 만들고(`build_policy_card`), AI는 짧은 소개·보여줄 카드 선택·카드별 요점만 한다(`_card_answer`, `CARD_INTRO_PROMPT`) | 정책 내용을 AI가 글로 다시 쓰면 길고, 틀릴 수 있다(환각). 원문은 카드 확대 화면에 그대로 둔다. 팀원도 카드뉴스(`build_cards_node`)를 만들었는데, 병합 때 사용자가 우리 방식으로 결정했다. 팀원 것에서 복지로 링크와 `reply_type`은 가져왔다 |
+| **카드 요점** (`CardSummary`)                        | 카드 고르는 같은 AI 호출에서 카드마다 "무엇을(25자)·누가(20자)"도 받는다                                                                        | 원문 앞부분을 잘라 보여주면 핵심(금액·대상)이 묻혀서 한눈에 안 들어왔다. 호출 수는 그대로, 목록 답변 토큰 약 +25~40%, 약 +1.3초 (측정값). 나중엔 DB에 미리 저장하는 방식(B)이 더 좋다                                      |
+| **내 정보 반영** (`user_profile.py` 새로)               | 앱이 보낸 나이·지역·가구 상황으로 ① 지역 필터(중앙 정책 + 우리 지역 정책) ② 생애주기·대상구분 조건 보충 ③ AI 소개 맥락                                            | "받을 수 있는 혜택 있어?"처럼 조건 없는 질문에도 되묻지 않고 바로 찾게. 지역 필터 때문에 후보를 30→120개로 늘렸다                                                                                    |
+| **대화 속 정보 감지** (`detected_tags`, `new_detected`) | 대화에서 저소득·장애 등을 말하면 응답 `detected`로 알려주고 앱이 "저장할까요?"를 묻는다                                                               | 사용자가 설정 화면에 가지 않아도 내 정보를 채울 수 있게                                                                                                                          |
+| **조건 추출 이중 확인** (`has_evidence`)                 | 조건 추출 AI가 붙인 대상구분은 사용자가 쓴 문장에 근거 단어가 있을 때만 쓴다                                                                         | 원래 코드부터 AI가 근거 없이 "보훈대상자" 등을 붙였다(평가 v12 로그에도 있음). 저장 안내가 엉뚱하게 뜨고 검색 순위도 조금 틀어졌다                                                                           |
+| **상세 답변에도 카드**                                   | "1번 자세히"에 그 정책 카드를 붙이고 마크다운 기호를 지운다(`_plain_text`)                                                                    | 앱 말풍선은 마크다운을 안 그려서 `**`, `###`이 그대로 보였다                                                                                                                   |
+| **음성 인식 보안** (`api.py`)                          | 팀원 클로바(gRPC) 그대로 + 웹소켓 토큰 검사(`?token=`, 실패 1008), 로그엔 글자 수만, 오류 내용은 앱에 안 보냄                                           | 음성·대화는 개인정보(건강·소득)가 섞일 수 있고, 서버 내부 오류를 밖에 보여줄 필요가 없다                                                                                                      |
+| `requirements.txt`                               | `openai` 추가                                                                                                           | 원래 코드가 쓰는데 목록에 빠져 있어서 새 환경에서 서버가 안 떴다                                                                                                                     |
+| `tasks.py`                                       | 주석만                                                                                                                   | 저장 키가 `기기ID:세션ID`로 바뀐 것 표시. **5분 보관(테스트용)은 그대로** 두었다 (팀원 결정 필요)                                                                                           |
 
 ### 앱 (front/welfare-chat-app)
 | 무엇을 | 어떻게 | 왜 |
 |---|---|---|
 | **구조** | `(tabs)` 탭 화면(Home·Explore·index3 등 템플릿 화면) → `(main)` 스택 3화면(대화창·목록·설정). Expo 템플릿 부품(`themed-*`, `parallax-scroll-view`, `hello-wave`, `haptic-tab`, `ui/*`, `use-color-scheme` 등)과 `typographyOption`, `font-size-context`, `scripts/reset-project.js` 삭제 | 템플릿 파일이 실제 앱과 섞여 있어서 어느 게 진짜인지 헷갈렸다. 화면 하나에 기능이 다 들어 있던 `chat.tsx`를 부품·훅으로 나눠 고치기 쉽게 |
-| **대화창** | `chat.tsx`는 조립만. 입력줄(`ChatInputBar`), 말풍선(`MessageBubble`), 카드(`CardsAnswer`·`PolicyCardView`), 마이크(`MicButton`·`VoiceModal`), 기능은 `useChat`·`useVoiceRecorder` | 팀원 최신 `chat.tsx`는 한 파일 422줄(화면·녹음·전송·마스코트가 섞임). 역할별로 나눴다. 방이 바뀌면 화면을 새로 그려 메시지가 섞이지 않게 |
+| **대화창** | `chat.tsx`는 조립만. 입력줄(`ChatInputBar`), 말풍선(`MessageBubble`), 답변(`BotAnswer`·`MascotHeader`·`PolicyCardView`), 마이크(`MicButton`·`VoiceModal`), 기능은 `useChat`·`useVoiceRecorder` | 팀원 최신 `chat.tsx`는 한 파일 422줄(화면·녹음·전송·마스코트가 섞임). 역할별로 나눴다. 방이 바뀌면 화면을 새로 그려 메시지가 섞이지 않게 |
 | **카드** | 팀원 `PolicyCarousel`(가로 넘기기) 대신 세로 카드 + 확대 화면(블러). 카드에 공유·보관·거절, 보관함 탭, 복지로 링크 | 사용자 결정(카드·디자인은 우리 방식). 보관·거절이 있어야 여러 번 상담해도 정리된다 |
 | **여러 상담방** | `sessions-context`: 방 목록·즐겨찾기·삭제·새 상담 | 원래는 방이 하나뿐이라 주제가 섞였다 |
 | **내 정보** | 첫 실행 안내(AI 고지 + 태어난 해·지역), 설정의 "내 기본 정보", 장애는 민감정보 별도 동의. 폰에만 **암호화** 저장(`expo-secure-store`) | 맞춤 검색을 위해. 개인정보라 서버에 저장하지 않고 폰에 암호화 |
 | **음성** | 팀원 `VoicePanel`·마스코트 대신 가운데 음성 창(`VoiceModal`). 다 말하면 바로 전송 | 마스코트는 보류(사용자 결정). 입력칸에 글자가 들어가는 방식은 작은 글씨라 읽기 어려웠다 |
 | **서버 통신** (`api/`) | 서버 주소를 환경변수로(`EXPO_PUBLIC_API_URL`), 모든 요청에 토큰 자동 첨부·401이면 재발급 후 1번 재시도, 서버 snake_case → 앱 camelCase 변환을 한 곳에서 | 원래는 Render 주소가 코드에 고정이라 로컬 서버로 테스트할 수 없었다 |
-| **접근성** | 글자 크기(12~28) 전 화면 반영, 색약 모드(Okabe-Ito), 버튼 최소 높이 44, 움직임 줄이기 존중 | 어르신·색각이상 사용자 |
+| **접근성** | 글자 크기(12~28) 전 화면 반영, 색약 모드 4종(녹색맹·적색맹·전색맹·청황색맹, 전색맹은 마스코트도 흑백), 버튼 최소 높이 44, 움직임 줄이기 존중 | 어르신·색각이상 사용자 |
 | 설정 파일 | `package.json`: `expo-secure-store`·`expo-blur`·`expo-dev-client` 추가. `eas.json`: development에 `node: 24.12.0`. `tsconfig.json`: 없는 파일 참조 삭제 | 암호화 저장·블러·개발용 빌드. EAS 빌드 서버의 npm 버전 문제 |
 
 ### 이름 규칙 (2026-11-11 정리)

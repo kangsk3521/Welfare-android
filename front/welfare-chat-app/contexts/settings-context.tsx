@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-import { Palette, Palettes } from '@/constants/theme';
+import { COLOR_BLIND_TYPES, ColorBlindType, Palette, Palettes } from '@/constants/theme';
 import { loadJSON, saveJSON } from '@/utils/storage';
 
-// 화면 설정: 글자크기, 색약모드. 바꿀 때마다 폰에 저장해서 앱을 다시 켜도 유지된다.
+// 화면 설정: 글자크기, 색약모드(켜기/끄기 + 종류). 바꿀 때마다 폰에 저장해서 앱을 다시 켜도 유지된다.
 // (사용자 기본 정보는 개인정보라 contexts/profile-context.tsx에서 암호화 저장소로 따로 관리)
 
 const STORAGE_KEY = '@app_settings';
@@ -14,13 +14,15 @@ export const FONT_SIZE_MAX = 28;
 type Settings = {
   fontSize: number;
   colorBlind: boolean;
+  colorBlindType: ColorBlindType;
 };
 
-const DEFAULT_SETTINGS: Settings = { fontSize: 15, colorBlind: false };
+const DEFAULT_SETTINGS: Settings = { fontSize: 15, colorBlind: false, colorBlindType: 'deutan' };
 
 type SettingsContextType = Settings & {
   setFontSize: (size: number) => void;
   setColorBlind: (on: boolean) => void;
+  setColorBlindType: (type: ColorBlindType) => void;
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -38,6 +40,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setSettings({
             fontSize: saved.fontSize ?? DEFAULT_SETTINGS.fontSize,
             colorBlind: saved.colorBlind ?? DEFAULT_SETTINGS.colorBlind,
+            // 모르는 값(예전 버전·잘못 저장된 값)이면 기본 종류
+            colorBlindType: COLOR_BLIND_TYPES.some((t) => t.value === saved.colorBlindType)
+              ? (saved.colorBlindType as ColorBlindType)
+              : DEFAULT_SETTINGS.colorBlindType,
           });
         }
       })
@@ -55,6 +61,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setFontSize: (size) =>
       setSettings((s) => ({ ...s, fontSize: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, size)) })),
     setColorBlind: (on) => setSettings((s) => ({ ...s, colorBlind: on })),
+    setColorBlindType: (type) => setSettings((s) => ({ ...s, colorBlindType: type })),
   };
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
@@ -66,8 +73,14 @@ export function useSettings() {
   return context;
 }
 
-// 지금 모드(일반/색약)에 맞는 색 묶음
+// 지금 모드(일반/색약 종류)에 맞는 색 묶음
 export function useTheme(): Palette {
-  const { colorBlind } = useSettings();
-  return colorBlind ? Palettes.colorBlind : Palettes.default;
+  const { colorBlind, colorBlindType } = useSettings();
+  return colorBlind ? Palettes[colorBlindType] : Palettes.default;
+}
+
+// 전색맹 모드면 그림(마스코트)도 흑백으로 보여준다
+export function useGrayscale(): boolean {
+  const { colorBlind, colorBlindType } = useSettings();
+  return colorBlind && colorBlindType === 'achroma';
 }
