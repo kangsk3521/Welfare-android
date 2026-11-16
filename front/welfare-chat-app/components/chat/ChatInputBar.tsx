@@ -1,30 +1,28 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import { Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { Palette, webNoOutline } from '@/constants/theme';
 import { useSettings, useTheme } from '@/contexts/settings-context';
 
 const MAX_LINES = 5; // 입력칸이 늘어나는 최대 줄 수. 넘으면 칸 안에서 스크롤
 
-// 하단 입력줄: [+ 입력칸] [전송] [공유]
+// 하단 입력줄: [+ 입력칸] [전송]
+// (대화 공유 버튼은 뺐다: 복지 혜택은 카드로 안내하고 카드마다 공유 버튼이 있다)
 // - 글자 수에 맞춰 입력칸이 위로 늘어난다 (최대 5줄)
-// - 입력칸을 선택하면 공유 버튼이 사라지고 입력칸이 넓어진다 (onFocusChange로 화면에도 알림 → 마이크도 숨김)
+// - 입력칸 선택 여부를 onFocusChange로 화면에 알림 → 선택 중엔 마이크 버튼을 숨긴다
 // - 웹: Enter = 전송, Shift+Enter = 줄바꿈
 export function ChatInputBar({
   value,
   onChangeText,
   onSend,
   isSending,
-  onShare,
   onFocusChange,
 }: {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
   isSending: boolean;
-  onShare: () => void;
   onFocusChange: (focused: boolean) => void;
 }) {
   const theme = useTheme();
@@ -34,19 +32,14 @@ export function ChatInputBar({
 
   // ----- 선택 상태
   // 선택 해제는 0.2초 늦게 반영: 웹에서 전송 버튼을 누르면 선택이 먼저 풀리는데,
-  // 바로 공유 버튼이 다시 나타나면 전송 버튼이 밀려나서 클릭이 빗나가기 때문.
-  const [isFocused, setIsFocused] = useState(false);
+  // 바로 마이크 버튼이 다시 나타나며 화면이 움직이면 클릭이 빗나갈 수 있기 때문.
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const setFocused = (focused: boolean) => {
-    setIsFocused(focused);
-    onFocusChange(focused);
-  };
   const handleFocus = () => {
     if (blurTimer.current) clearTimeout(blurTimer.current);
-    setFocused(true);
+    onFocusChange(true);
   };
   const handleBlur = () => {
-    blurTimer.current = setTimeout(() => setFocused(false), 200);
+    blurTimer.current = setTimeout(() => onFocusChange(false), 200);
   };
   useEffect(
     () => () => {
@@ -55,7 +48,7 @@ export function ChatInputBar({
     []
   );
 
-  // 안드로이드 뒤로가기는 키보드만 내리고 입력칸 선택은 그대로 남긴다 → 공유·마이크 버튼이 안 돌아옴.
+  // 안드로이드 뒤로가기는 키보드만 내리고 입력칸 선택은 그대로 남긴다 → 마이크 버튼이 안 돌아옴.
   // 키보드가 내려가면 입력칸 선택도 풀어서 원래 화면으로 돌아가게 한다.
   useEffect(() => {
     const sub = Keyboard.addListener('keyboardDidHide', () => inputRef.current?.blur());
@@ -96,8 +89,7 @@ export function ChatInputBar({
 
   return (
     <View style={styles.bar}>
-      {/* 입력칸·전송 버튼은 공유 버튼이 사라지거나 생길 때 자리를 부드럽게 옮긴다 */}
-      <Animated.View style={styles.pillWrap} layout={LinearTransition.duration(200)}>
+      <View style={styles.pillWrap}>
         {/* 칸 어디를 눌러도 입력이 시작되게 */}
         <Pressable style={styles.pill} onPress={() => inputRef.current?.focus()} accessible={false}>
           <MaterialIcons name="add" size={27} color={theme.subText} />
@@ -119,26 +111,16 @@ export function ChatInputBar({
             placeholderTextColor={theme.subText}
           />
         </Pressable>
-      </Animated.View>
+      </View>
 
-      <Animated.View layout={LinearTransition.duration(200)}>
-        <Pressable
-          style={[styles.sendButton, isSending && { opacity: 0.6 }]}
-          onPress={onSend}
-          disabled={isSending}
-          accessibilityRole="button"
-          accessibilityLabel="보내기">
-          <MaterialIcons name="send" size={25} color={theme.onAccent} style={{ transform: [{ rotate: '-30deg' }] }} />
-        </Pressable>
-      </Animated.View>
-
-      {!isFocused && (
-        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
-          <Pressable style={styles.shareButton} onPress={onShare} accessibilityRole="button" accessibilityLabel="대화 공유">
-            <Text style={styles.shareText}>공유</Text>
-          </Pressable>
-        </Animated.View>
-      )}
+      <Pressable
+        style={[styles.sendButton, isSending && { opacity: 0.6 }]}
+        onPress={onSend}
+        disabled={isSending}
+        accessibilityRole="button"
+        accessibilityLabel="보내기">
+        <MaterialIcons name="send" size={25} color={theme.onAccent} style={{ transform: [{ rotate: '-30deg' }] }} />
+      </Pressable>
     </View>
   );
 }
@@ -147,7 +129,7 @@ const makeStyles = (t: Palette) =>
   StyleSheet.create({
     bar: {
       flexDirection: 'row',
-      alignItems: 'flex-end', // 입력칸이 여러 줄로 커져도 전송·공유 버튼은 아래에 붙어 있게
+      alignItems: 'flex-end', // 입력칸이 여러 줄로 커져도 전송 버튼은 아래에 붙어 있게
       paddingHorizontal: 20,
       paddingTop: 8,
       paddingBottom: 28,
@@ -182,12 +164,4 @@ const makeStyles = (t: Palette) =>
       justifyContent: 'center',
       alignItems: 'center',
     },
-    shareButton: {
-      backgroundColor: t.accentStrong,
-      height: 52,
-      paddingHorizontal: 18,
-      borderRadius: 26,
-      justifyContent: 'center',
-    },
-    shareText: { color: t.onAccent, fontSize: 17, fontWeight: '700' },
   });

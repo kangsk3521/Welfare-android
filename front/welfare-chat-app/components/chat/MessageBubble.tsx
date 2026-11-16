@@ -4,7 +4,7 @@ import { Palette } from '@/constants/theme';
 import { useSettings, useTheme } from '@/contexts/settings-context';
 import { Message } from '@/types/chat';
 
-// 말풍선: 내 말은 오른쪽 강조색, 챗봇 답변은 왼쪽 테두리 카드, 에러는 빨간 테두리
+// 말풍선: 내 말은 오른쪽, 챗봇 답변은 왼쪽. 둘 다 시안처럼 밝은 바탕 + 테두리, 에러는 빨간 테두리
 export function MessageBubble({ message }: { message: Message }) {
   const styles = makeStyles(useTheme());
   const { fontSize } = useSettings();
@@ -33,9 +33,9 @@ export function TypingBubble() {
 const makeStyles = (t: Palette) =>
   StyleSheet.create({
     bubble: { maxWidth: '85%', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 18, marginTop: 12 },
-    myBubble: { alignSelf: 'flex-end', backgroundColor: t.accent },
+    myBubble: { alignSelf: 'flex-end', backgroundColor: t.surface, borderWidth: 2, borderColor: t.border },
     botBubble: { alignSelf: 'flex-start', backgroundColor: t.surface, borderWidth: 2, borderColor: t.border },
     errorBubble: { borderColor: t.danger },
-    myText: { color: t.onAccent },
+    myText: { color: t.text },
     botText: { color: t.text },
   });

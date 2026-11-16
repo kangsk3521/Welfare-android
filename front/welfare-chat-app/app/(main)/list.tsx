@@ -52,7 +52,7 @@ export default function ListScreen() {
 
   // 별 버튼과 카드 버튼을 나란히 둔다 (버튼 안에 버튼을 넣으면 웹에서 오류)
   const renderItem = ({ item }: { item: Session }) => (
-    <View style={[styles.card, item.id === currentId && styles.cardCurrent]}>
+    <View style={[styles.card, item.starred && styles.cardStarred, item.id === currentId && styles.cardCurrent]}>
       <Pressable
         style={styles.starButton}
         onPress={() => toggleStar(item.id)}
@@ -156,6 +156,7 @@ const makeStyles = (t: Palette) =>
       borderRadius: 18,
       paddingLeft: 18,
     },
+    cardStarred: { backgroundColor: t.starBg },
     cardCurrent: { borderColor: t.accent },
     starButton: { paddingVertical: 20, paddingRight: 14 },
     cardBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 20, paddingRight: 20 },

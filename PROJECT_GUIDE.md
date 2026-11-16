@@ -138,8 +138,8 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `(main)/_layout.tsx` (새로) | Stack 화면 3개와 위쪽 바 버튼. 대화창(⚙️/목록), 목록(⚙️/💬), 설정(—/💬). 💬는 `router.dismissTo('/chat')`라 화면이 쌓이지 않음 |
 | `(main)/index.tsx` (새로) | `/` → `/chat` 리다이렉트 |
 | `(main)/chat.tsx` (새로) | 대화창 조립. `ChatScreen`이 현재 상담방 id를 `key`로 `ChatRoom`을 새로 그림(방이 바뀌면 메시지 섞임 방지). 메시지 종류별 렌더(카드 답변/말풍선) + "저장할까요?" 안내. 맨 아래 스크롤은 메시지 수·작성중·키보드·입력칸 선택이 바뀔 때만 50/300/700ms 세 번 (카드 거절로 높이만 바뀔 땐 안 내림 → 보던 자리 유지). FlatList가 아니라 ScrollView에 직접 `scrollToEnd` 요청(여백 바뀐 직후 덜 내려가는 문제) |
-| `(main)/list.tsx` (새로) | 탭 [상담 목록 / 보관한 혜택 N]. 상담방: 별=즐겨찾기(위로 정렬), 누르면 그 방으로, 길게 누르면 삭제, 하단 "+ 새 상담"(빈 방 있으면 재사용). 보관함: 보관 카드 + 확대 |
-| `(main)/settings.tsx` (새로) | 글자크기(12~28), 색약모드(스위치를 켜면 녹색맹·적색맹·전색맹·청황색맹 칩), `ProfileEditor` |
+| `(main)/list.tsx` (새로) | 탭 [상담 목록 / 보관한 혜택 N]. 상담방: 별=즐겨찾기(위로 정렬, 배경 `starBg`), 누르면 그 방으로, 길게 누르면 삭제, 하단 "+ 새 상담"(빈 방 있으면 재사용). 보관함: 보관 카드 + 확대 |
+| `(main)/settings.tsx` (새로) | 글자크기(12~28), `ProfileEditor`. 색약모드는 2026-11-16 삭제(시안 색이 색각이상에서도 구분됨) |
 
 ### components/common
 | 파일 | 설명 |
@@ -157,10 +157,10 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 ### components/chat
 | 파일 | 설명 |
 |---|---|
-| `ChatInputBar.tsx` | 하단 입력줄 [+ 입력칸][전송][공유]. 여러 줄 자동 늘어남(최대 5줄, 이후 칸 안 스크롤; 웹은 높이를 0으로 줄였다 재는 방식). 웹 Enter=전송·Shift+Enter=줄바꿈·한글 조합 중 Enter 무시. 선택 시 공유 숨기고 입력칸 확장, 선택 해제는 0.2초 지연(웹 전송 클릭 빗나감 방지). `keyboardDidHide`에 blur(안드로이드 뒤로가기). `minWidth:0`(웹 입력창 기본 최소너비), `webNoOutline` |
+| `ChatInputBar.tsx` | 하단 입력줄 [+ 입력칸][전송] (대화 공유 버튼은 2026-11-16 삭제: 카드마다 공유가 있음). 여러 줄 자동 늘어남(최대 5줄, 이후 칸 안 스크롤; 웹은 높이를 0으로 줄였다 재는 방식). 웹 Enter=전송·Shift+Enter=줄바꿈·한글 조합 중 Enter 무시. 선택 여부를 화면에 알림(선택 중 마이크 숨김), 선택 해제는 0.2초 지연(웹 전송 클릭 빗나감 방지). `keyboardDidHide`에 blur(안드로이드 뒤로가기). `minWidth:0`(웹 입력창 기본 최소너비), `webNoOutline` |
 | `MicButton.tsx` | 채팅 목록 위에 떠 있는 마이크(배경 투명, `pointerEvents: box-none`) + 잠깐 뜨는 안내(`notice`, 3초). 누르면 `VoiceModal`. `MIC_SPACE=94`만큼 목록 아래 여백 |
 | `VoiceModal.tsx` (새로) | 마이크를 누르면 가운데 뜨는 음성 창: 블러 배경, 듣는 중 마스코트(`listen`) + 뒤 원 애니메이션(움직임 줄이기면 정지), 알아들은 말을 큰 글씨(글자크기+8)로, [취소] [다 말했어요]. 바깥 터치로 안 닫힘, 뒤로가기=취소 |
-| `MessageBubble.tsx` | 말풍선(내 말/봇/에러) + `TypingBubble`("답변을 작성하고 있어요…") |
+| `MessageBubble.tsx` | 말풍선(내 말/봇/에러, 시안처럼 둘 다 밝은 바탕+테두리) + `TypingBubble`("답변을 작성하고 있어요…") |
 | `ChatIntro.tsx` | 안내 박스 + 대화 시작 전 추천 칩 4개(누르면 "○○ 알려줘" 전송) |
 | `BotAnswer.tsx` (2026-11-15) | 챗봇 답변 = [마스코트 안내] + [글 말풍선] + [카드]. 서버 `reply_type`별: list=성공 마스코트 "복지정보를 찾았어요!"+카드(AI 소개 글 숨김), detail=성공+글+카드, ask=fail "정보가 더 필요해요!"+글, no_result=fail(글 숨김), detail_fail=fail+글, blocked=no(글 숨김), general·예전 메시지=말풍선만 |
 | `MascotHeader.tsx` (2026-11-15) | 마스코트(90px)가 위에 걸친 안내 말풍선(`head` 색, 왼쪽 위 모서리 각짐). 디자인 시안 `mockup/des_1`의 ai-head |
@@ -183,7 +183,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 ### contexts (앱 전체 상태, 폰 저장)
 | 파일 | 저장 키 | 설명 |
 |---|---|---|
-| `settings-context.tsx` | `@app_settings` (일반) | 글자크기·색약모드·색약 종류(`colorBlindType`, 기본 녹색맹), `useTheme()`(일반/종류별 팔레트), `useGrayscale()`(전색맹이면 마스코트 흑백). 예전 평문 사용자 메모는 읽을 때 버림 |
+| `settings-context.tsx` | `@app_settings` (일반) | 글자크기, `useTheme()`(앱 색 `Colors`). 예전 평문 사용자 메모·색약모드 값은 읽을 때 버림 |
 | `profile-context.tsx` | `user_profile` (**암호화**), `@onboarding_done` (일반) | 내 기본 정보. `updateProfile`, `setSensitiveConsent`(철회 시 장애 정보 삭제), `clearProfile`, `finishOnboarding`, `loaded` |
 | `sessions-context.tsx` | `@app_sessions`, `@app_current_session` | 상담방 목록 `{id,title,createdAt,starred}`. 첫 메시지가 제목. 처음 켜면 빈 방 하나 |
 | `cards-context.tsx` | `@saved_cards`, `@hidden_cards` | 보관 카드(내용 통째로), 숨긴 카드(`세션id:카드id`) |
@@ -207,11 +207,11 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | `utils/storage.ts` | 저장소 한곳: `loadJSON/saveJSON/loadText/saveText`(AsyncStorage), `loadSecret/saveSecret/deleteSecret`(SecureStore, 웹은 AsyncStorage) |
 | `utils/dialog.ts` | `notify`, `confirm` (웹은 window.alert/confirm, 앱은 Alert) |
 | `utils/consent.ts` | `askSensitiveConsent()` 민감정보 동의 확인창 (문구 한곳) |
-| `utils/share.ts` | 대화 공유, 정책 카드 1장 공유 (RN `Share`, 복지로 링크 포함) |
+| `utils/share.ts` | 정책 카드 1장 공유 (RN `Share`, 복지로 링크 포함). 대화 전체 공유는 2026-11-16 삭제 |
 | `utils/audio.ts` | 마이크 모듈이 있을 때만 require (웹·Expo Go에선 import만 해도 에러) |
 | `constants/config.ts` | `API_URL`(`EXPO_PUBLIC_API_URL` 또는 Render), `WS_URL` |
-| `constants/theme.ts` (수정) | `Palettes.default` + 색약 4종 `deutan/protan/achroma/tritan`(디자인 시안 `mockup/des_1/color` 화면 12장에서 색을 뽑음, 3장씩 녹·적·전·청황), `COLOR_BLIND_TYPES`, `head`(마스코트 말풍선 색), `webNoOutline` |
-| `constants/mascot.ts` (2026-11-15) | 마스코트 그림 `success/fail/no/listen` + 흑백(`_gray`). `assets/mascot/`는 시안 그림을 360px로 줄인 것 |
+| `constants/theme.ts` (수정) | 앱 색 `Colors` 하나 = 시안 `mockup/des_1/des_1.html`의 `:root` 값 그대로(bg·surface·head·border·text·muted·accent·accent-dark·별·삭제). `chip`은 muted-bg(25% 투명)를 배경에 겹친 색, `starBg`=즐겨찾기 상담방 배경, `webNoOutline` |
+| `constants/mascot.ts` (2026-11-15) | 마스코트 그림 `MASCOT.success/fail/no/listen`. `assets/mascot/`는 시안 그림을 360px로 줄인 것 |
 | `constants/brand.ts` | 앱 이름(**임시 "복지 상담 챗봇"**), 소개 문구, 팀 SOLV |
 | `constants/regions.ts` | 시·도→시·군·구 (DB Province/District 이름 그대로, "-/전체/교육청" 제외, 광주·전남은 DB대로 "전남광주통합특별시") |
 | `types/chat.ts` | `PolicyCard{…, url?, isLocal?, what?, who?}`, `Message{cards?, detected?}` |
@@ -279,7 +279,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | **내 정보** | 첫 실행 안내(AI 고지 + 태어난 해·지역), 설정의 "내 기본 정보", 장애는 민감정보 별도 동의. 폰에만 **암호화** 저장(`expo-secure-store`) | 맞춤 검색을 위해. 개인정보라 서버에 저장하지 않고 폰에 암호화 |
 | **음성** | 팀원 `VoicePanel`·마스코트 대신 가운데 음성 창(`VoiceModal`). 다 말하면 바로 전송 | 마스코트는 보류(사용자 결정). 입력칸에 글자가 들어가는 방식은 작은 글씨라 읽기 어려웠다 |
 | **서버 통신** (`api/`) | 서버 주소를 환경변수로(`EXPO_PUBLIC_API_URL`), 모든 요청에 토큰 자동 첨부·401이면 재발급 후 1번 재시도, 서버 snake_case → 앱 camelCase 변환을 한 곳에서 | 원래는 Render 주소가 코드에 고정이라 로컬 서버로 테스트할 수 없었다 |
-| **접근성** | 글자 크기(12~28) 전 화면 반영, 색약 모드 4종(녹색맹·적색맹·전색맹·청황색맹, 전색맹은 마스코트도 흑백), 버튼 최소 높이 44, 움직임 줄이기 존중 | 어르신·색각이상 사용자 |
+| **접근성** | 글자 크기(12~28) 전 화면 반영, 색 조합 자체를 색각이상에서도 구분되는 시안 색으로(색약모드 없음), 버튼 최소 높이 44, 움직임 줄이기 존중 | 어르신·색각이상 사용자 |
 | 설정 파일 | `package.json`: `expo-secure-store`·`expo-blur`·`expo-dev-client` 추가. `eas.json`: development에 `node: 24.12.0`. `tsconfig.json`: 없는 파일 참조 삭제 | 암호화 저장·블러·개발용 빌드. EAS 빌드 서버의 npm 버전 문제 |
 
 ### 이름 규칙 (2026-11-11 정리)

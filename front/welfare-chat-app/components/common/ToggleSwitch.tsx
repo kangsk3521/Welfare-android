@@ -19,7 +19,7 @@ export function ToggleSwitch({
     <Switch
       value={value}
       onValueChange={onValueChange}
-      trackColor={{ false: theme.chip, true: theme.accent }}
+      trackColor={{ false: theme.switchOff, true: theme.accent }}
       thumbColor={theme.switchThumb}
       // 웹 전용 속성: 안 넣으면 웹에서 켜졌을 때 손잡이가 초록색이 된다
       {...({ activeThumbColor: theme.switchThumb } as object)}

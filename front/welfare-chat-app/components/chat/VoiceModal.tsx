@@ -11,9 +11,9 @@ import Animated, {
   ZoomIn,
 } from 'react-native-reanimated';
 
-import { mascotImage } from '@/constants/mascot';
+import { MASCOT } from '@/constants/mascot';
 import { Palette } from '@/constants/theme';
-import { useGrayscale, useSettings, useTheme } from '@/contexts/settings-context';
+import { useSettings, useTheme } from '@/contexts/settings-context';
 import { VoicePhase } from '@/hooks/useVoiceRecorder';
 
 // 마이크를 누르면 화면 가운데 뜨는 음성 창.
@@ -39,7 +39,6 @@ export function VoiceModal({
   const theme = useTheme();
   const styles = makeStyles(theme);
   const { fontSize } = useSettings();
-  const gray = useGrayscale();
   const scrollRef = useRef<ScrollView>(null);
 
   // 듣는 동안 마스코트 뒤 원이 천천히 커졌다 작아진다 (움직임 줄이기 설정이면 멈춤)
@@ -70,7 +69,7 @@ export function VoiceModal({
         <Animated.View entering={ZoomIn.duration(200)} style={styles.sheet}>
           <View style={styles.micArea}>
             <Animated.View style={[styles.pulse, listening && styles.pulseActive, pulseStyle]} />
-            <Image source={mascotImage('listen', gray)} style={styles.mascot} resizeMode="contain" accessible={false} />
+            <Image source={MASCOT.listen} style={styles.mascot} resizeMode="contain" accessible={false} />
           </View>
 
           <Text style={[styles.title, { fontSize: fontSize + 2 }]} accessibilityLiveRegion="polite">

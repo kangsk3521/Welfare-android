@@ -15,7 +15,6 @@ import { useChat } from '@/hooks/useChat';
 import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { Message, PolicyCard } from '@/types/chat';
-import { shareMessages } from '@/utils/share';
 
 // 대화창 화면. 기능은 hooks/, 화면 조각은 components/chat/ 에 있고 여기서는 조립만 한다.
 //
@@ -23,7 +22,7 @@ import { shareMessages } from '@/utils/share';
 //   │ MessageBubble ...         │  ← FlatList
 //   │ BotAnswer (마스코트 안내 + 글 + 정책 카드들) │  카드를 누르면 PolicyDetailModal (블러 + 확대)
 //   │        MicButton (떠 있음) │  누르면 VoiceModal (가운데 음성 창, 다 말하면 바로 전송)
-//   └ ChatInputBar (입력·전송·공유)┘
+//   └ ChatInputBar (입력·전송)   ┘
 
 // 방이 바뀌면 key가 바뀌어서 대화 화면을 새로 그린다 (이전 방 메시지가 남지 않게)
 export default function ChatScreen() {
@@ -113,7 +112,6 @@ function ChatRoom({ sessionId }: { sessionId: string }) {
         onChangeText={setInputText}
         onSend={() => sendText(inputText)}
         isSending={isSending}
-        onShare={() => shareMessages(messages)}
         onFocusChange={setIsInputFocused}
       />
 
