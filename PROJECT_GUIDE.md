@@ -99,7 +99,8 @@ welfare-local/
 ├─ front/welfare-chat-app/     ← 앱 (거의 전부 우리가 새로 작성)
 └─ back/
    ├─ chat/                    ← 실제 서비스 백엔드 (우리가 수정: 인증·카드·프로필)
-   ├─ chat 3turn/, rag/, GraphRAG/, data_ext/ … (팀원 코드, 손대지 않음)
+   ├─ data_ext/                (팀원 코드: 데이터 수집·Neo4j 적재, 손대지 않음)
+   │  ※ chat 3turn/, rag/, GraphRAG/, serverchecking/ 는 2026-11-21 삭제 (평가 비교용·테스트 스크립트, 원본은 Welfare/back에 있음)
 ```
 
 ### 앱 폴더 구조
@@ -229,22 +230,35 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 
 ## 5. 백엔드 수정 (back/chat)
 
-| 파일 | 설명 |
-|---|---|
-| `auth.py` (새로) | 기기 토큰 = `기기ID.HMAC서명`(서버 저장 불필요). `require_device`(401), `verify_token`, `thread_key(기기ID, 세션ID)`(세션ID 형식 검사, 400) |
-| `user_profile.py` (새로) | 앱이 보낸 프로필 처리: `UserProfileIn`, 나이→생애주기, 가구상황+장애→대상구분, `describe()`(AI 맥락 한 줄), `new_detected()`, `TAG_EVIDENCE`/`has_evidence()`(대상구분별 근거 단어, 이중 확인용). 표준 모듈 `profile`과 이름 겹쳐서 이 이름 |
-| `api.py` (수정) | `POST /auth/device`. `/chat`·`/chat/history`·`/File`·웹소켓에 토큰 검사(웹소켓은 `?token=`, 실패 1008). 대화 저장 키 `기기ID:세션ID`. 요청 `profile`, 응답 `cards`·`detected`·`reply_type`. 카드에 `url`(복지로). 음성 웹소켓은 클로바 gRPC(`nest_pb2*.py`, 말하는 동안 누적 글자 전송, 끝나면 `final: true`). 로그엔 글자 수만, 오류 내용 숨김 |
-| `nodes.py` (수정) | `build_policy_card`(청크 머리말 제거, 지자체는 요약을 내용으로), 검색에 `all_chunks`·지역 필터(EXISTS, 후보 30→120)·프로필 조건 보충(모호하면 생애주기 단어 덧붙임), `_card_answer`(CardIntro 구조화 출력: 소개+picks+카드별 요점 `summaries`(what 25자/who 20자, 서버에서 40/30자로 자름), 실패 시 전체·요점 없음, 토큰 사용량 로그), `_with_card_text`(요점용으로 검색 결과에 빠진 지원대상·서비스내용을 300자만 보충), `is_local`, 상세 답변에도 카드 + `_plain_text`(마크다운 제거), `detected_tags`, 모든 답변에 `reply_type`(+ `_tag`로 메시지 `additional_kwargs`에도 적어서 `/chat/history`가 `reply_type`을 돌려줌 → 다시 불러와도 마스코트 유지). **이중 확인**: 조건 추출 AI가 붙인 대상구분은 사용자 문장에 근거가 있을 때만 검색 조건(사용자 문장 전체)·저장 안내(이번 문장)에 씀 |
-| `prompts.py` (수정) | `CARD_INTRO_PROMPT` 추가(구체 질문엔 바로 답, 카드별 요점, 개인정보 언급 금지, 마크다운 금지, `{user_info}`) |
-| `state.py` (수정) | `CardIntro`(+`CardSummary`) 모델, `current_cards`, `user_profile`, `detected_tags`, `reply_type` |
-| `tasks.py` (수정) | 주석만 (키가 thread_key) |
-| `requirements.txt` (수정) | `openai` 추가 (원래 빠져 있었음), 팀원이 `grpcio`·`protobuf` 추가 |
+기준: 팀원 `origin/master` `bf7c6f7` → 우리 `HEAD`. `git diff bf7c6f7 HEAD -- back/chat`으로 확인 (2026-11-18 diff 대조로 다시 정리).
+바뀐 파일 9개: 새 파일 2(`auth.py`, `user_profile.py`), 수정 7(`api.py`, `nodes.py`, `graph.py`, `prompts.py`, `state.py`, `tasks.py`, `requirements.txt`). `main.py`·`nest_pb2*.py`는 팀원 그대로.
+
+| 파일 | 새로/수정 | 바뀐 내용 |
+|---|---|---|
+| `auth.py` | 새로 | 기기 토큰 = `기기ID.HMAC서명`(서버 저장 불필요, 키 `DEVICE_TOKEN_SECRET`). `issue_token`, `verify_token`, `require_device`(실패 401), `thread_key(기기ID, 세션ID)`(세션ID 형식 검사, 실패 400) |
+| `user_profile.py` | 새로 | 앱이 보낸 프로필 처리: `UserProfileIn`(`cleaned()`), 나이→생애주기 `life_cycle_of`, 가구상황+장애→대상구분 `target_groups_of`, `describe()`(AI 맥락 한 줄), `new_detected()`(프로필에 없는 감지 태그만), `TAG_EVIDENCE`/`has_evidence()`(대상구분별 근거 단어). 11-16 사용자가 저소득 근거 단어 보강("형편이어려" 등) |
+| `api.py` | 수정 | `POST /auth/device` 추가. `/chat`·`/chat/history`·`/File`에 `Depends(require_device)`, 웹소켓은 `?token=` 검사(실패 1008). 대화 저장 키 `기기ID:세션ID`. 요청에 `profile`(선택). **응답 형식 변경**: 팀원 `policies[{id,name,department,target,benefit,apply,summary,is_local,url}]` → 우리 `cards[{id,title,target,content,apply_method,department,support_type,digest,url,is_local,what,who}]` + `detected`. history도 팀원 `replyType`·`policies` → `reply_type`·`cards`. 로그에 질문·음성 내용 대신 글자 수만, 클로바 오류 내용은 앱에 안 보냄 |
+| `nodes.py` | 수정 | ① 카드: 팀원 `build_cards_node` 삭제 → `build_policy_card`(검색 단계에서 DB 원문으로 카드) + `_card_answer`(AI는 소개·picks·카드별 요점만, `CardIntro` 구조화 출력, 실패 시 기본 소개+전체 카드) + `_with_card_text`(요점용 300자 보충) + `_short`. ② 조건 추출 `extract_conditions_node`: **이중 확인**(근거 없는 대상구분 제외, 221줄), 프로필도 조건 개수에 포함(되묻기 줄임), `detected_tags`(이번 문장 근거 있는 것만). ③ 검색 `execute_search_node`: 프로필로 생애주기·대상구분 보충(모호하면 검색어에 생애주기 덧붙임), **지역 필터**(Cypher EXISTS, 후보 30→120), `all_chunks`, `current_cards`. ④ 상세 검색: 정책당 1행 + 사용자가 말한 순서, 카드도 만듦. ⑤ 답변 `generate_answer_node`: 목록은 `_card_answer`로, 상세 답변 지시문을 "물어본 것 중심 3~6문장 + 카드 안내"로, 상세에도 카드 + `_plain_text`(마크다운 제거). ⑥ 모든 답변 `_tag`로 `reply_type`을 메시지에도 저장 |
+| `graph.py` | 수정 | 팀원 `build_cards` 노드·엣지 삭제 → `generate_answer`에서 바로 END |
+| `prompts.py` | 수정 | `CARD_INTRO_PROMPT` 추가(구체 질문엔 바로 답, 카드별 요점 what/who, 개인정보 언급 금지, 마크다운 금지, `{user_info}`). 팀원 프롬프트는 그대로 |
+| `state.py` | 수정 | `CardSummary`·`CardIntro` 모델 추가. `AgentState`: 팀원 `cards` 삭제, `current_cards`·`user_profile`·`detected_tags` 추가 |
+| `tasks.py` | 수정 | 주석 한 줄만 (키가 `기기ID:세션ID`). 보관 시간은 팀원 값 그대로(`timedelta(minutes=5)`, 테스트용) |
+| `requirements.txt` | 수정 | `openai` 추가 (`/File`이 쓰는데 빠져 있었음) |
+
+**성능 평가 결과에 영향을 주는 변경** (팀원 원본과 같은 질문을 넣어도 결과가 달라지는 곳)
+| 변경 | 언제 효과가 있나 | 결과 |
+|---|---|---|
+| 이중 확인 (`nodes.py` 221줄, `has_evidence`) | 항상 | AI가 근거 없이 붙인 대상구분(예: 보훈대상자)이 검색 조건에서 빠짐 → 검색 순위 달라짐. 근거 단어 목록이 표현을 못 잡으면 맞는 조건도 빠짐(11-16 "형편이 어려워요" 14턴) |
+| 카드형 목록 답변 (`_card_answer`) | 목록 답변일 때 | 답변 글이 짧은 소개뿐이고 정책 내용은 `cards`에. AI가 `picks`로 맞지 않는 정책을 뺄 수 있음 → 글 기준 채점(정책명 추출·RAGAS)과 안 맞음 |
+| 상세 답변 지시문 변경 | 상세요구일 때 | 글이 짧아짐(3~6문장) |
+| 프로필 반영·지역 필터 | 요청에 `profile`이 있을 때만 | 평가가 `profile` 없이 보내면 영향 없음 |
+| 되묻기 판정에 프로필 포함 | `profile`이 있을 때만 | 위와 같음 |
 
 **API 형식**
 - `POST /auth/device` → `{device_token}`
 - `POST /chat` (헤더 Bearer) `{session_id, user_message, profile?: {birth_year, province, district, household[], disability}}`
   → `{bot_reply, reply_type, cards: [{id,title,target,content,apply_method,department,support_type,digest,url,is_local,what,who}], detected: [...]}`
-- `GET /chat/history/{session_id}` → `[{id,text,isUser,cards}]` (카드는 메시지 `additional_kwargs["policy_cards"]`에 저장, AI에는 안 보내짐 확인함)
+- `GET /chat/history/{session_id}` → `[{id,text,isUser,cards,reply_type}]` (카드·답변 종류는 메시지 `additional_kwargs`에 저장, AI에는 안 보내짐 확인함)
 
 ## 5-1. 팀원 코드에서 무엇을 왜 바꿨나 (팀원 전달용)
 
@@ -252,14 +266,14 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 
 ### 원칙
 - **서버는 팀원 구조(LangGraph 흐름·노드 이름·검색 방식)를 유지하고 필요한 기능만 덧붙였다.** 새 기능은 새 파일(`auth.py`, `user_profile.py`)로 분리해서 팀원 파일 변경을 줄였다.
-- **API는 추가만 했다.** 요청에 `profile`(선택), 응답에 `cards`·`detected`·`reply_type`, 카드에 `url`·`is_local`·`what`·`who`. 예전 앱이 보내던 형식도 그대로 동작한다. 단 **토큰 없는 요청은 401**이라 예전 앱은 `/auth/device`부터 받아야 한다.
+- **API는 요청은 추가만, 응답은 카드 부분이 바뀌었다.** 요청에 `profile`(선택). 응답의 팀원 `policies`(필드 `name`·`benefit`·`apply`·`summary`)는 우리 `cards`(필드 `title`·`content`·`apply_method`·`digest` + `support_type`·`what`·`who`)로 바뀌었고 `detected`가 추가됐다. history도 `replyType`·`policies` → `reply_type`·`cards`. 그리고 **토큰 없는 요청은 401**이라 팀원 앱은 `/auth/device`부터 받아야 한다.
 - **앱은 Expo 템플릿 위에 화면이 하나씩 붙어 있던 구조를 역할별 폴더로 새로 짰다.** 화면(app) / 부품(components) / 공용 상태(contexts) / 동작(hooks) / 서버 통신(api) / 도구(utils). 팀원 화면 코드는 대부분 새 구조로 옮기거나 대체했다.
 
 ### 서버 (back/chat)
 | 무엇을                                              | 어떻게                                                                                                                   | 왜                                                                                                                                                         |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **기기 인증** (`auth.py` 새로)                         | 앱이 처음 켜질 때 `POST /auth/device`로 토큰(기기ID+HMAC 서명)을 받고, 모든 요청에 `Bearer` 토큰. 대화 저장 키를 `기기ID:세션ID`로                       | 원래는 세션 ID만 알면 남의 대화 기록(`/chat/history`)을 볼 수 있었다. 유료 API(Upstage·클로바)를 아무나 쓰는 것도 막는다. 서명 방식이라 토큰을 DB에 저장할 필요가 없다                                          |
-| **카드형 답변** (`nodes.py`, `prompts.py`)            | 검색된 정책을 DB 원문으로 카드 데이터로 만들고(`build_policy_card`), AI는 짧은 소개·보여줄 카드 선택·카드별 요점만 한다(`_card_answer`, `CARD_INTRO_PROMPT`) | 정책 내용을 AI가 글로 다시 쓰면 길고, 틀릴 수 있다(환각). 원문은 카드 확대 화면에 그대로 둔다. 팀원도 카드뉴스(`build_cards_node`)를 만들었는데, 병합 때 사용자가 우리 방식으로 결정했다. 팀원 것에서 복지로 링크와 `reply_type`은 가져왔다 |
+| **카드형 답변** (`nodes.py`, `prompts.py`, `graph.py`) | 검색된 정책을 DB 원문으로 카드 데이터로 만들고(`build_policy_card`), AI는 짧은 소개·보여줄 카드 선택·카드별 요점만 한다(`_card_answer`, `CARD_INTRO_PROMPT`) | 정책 내용을 AI가 글로 다시 쓰면 길고, 틀릴 수 있다(환각). 원문은 카드 확대 화면에 그대로 둔다. 팀원도 카드뉴스(`build_cards_node`, 답변 뒤 노드)를 만들었는데, 병합 때 사용자가 우리 방식으로 결정해 그 노드와 `graph.py` 엣지를 뺐다. 팀원 것에서 복지로 링크와 `reply_type`은 가져왔다 |
 | **카드 요점** (`CardSummary`)                        | 카드 고르는 같은 AI 호출에서 카드마다 "무엇을(25자)·누가(20자)"도 받는다                                                                        | 원문 앞부분을 잘라 보여주면 핵심(금액·대상)이 묻혀서 한눈에 안 들어왔다. 호출 수는 그대로, 목록 답변 토큰 약 +25~40%, 약 +1.3초 (측정값). 나중엔 DB에 미리 저장하는 방식(B)이 더 좋다                                      |
 | **내 정보 반영** (`user_profile.py` 새로)               | 앱이 보낸 나이·지역·가구 상황으로 ① 지역 필터(중앙 정책 + 우리 지역 정책) ② 생애주기·대상구분 조건 보충 ③ AI 소개 맥락                                            | "받을 수 있는 혜택 있어?"처럼 조건 없는 질문에도 되묻지 않고 바로 찾게. 지역 필터 때문에 후보를 30→120개로 늘렸다                                                                                    |
 | **대화 속 정보 감지** (`detected_tags`, `new_detected`) | 대화에서 저소득·장애 등을 말하면 응답 `detected`로 알려주고 앱이 "저장할까요?"를 묻는다                                                               | 사용자가 설정 화면에 가지 않아도 내 정보를 채울 수 있게                                                                                                                          |
@@ -268,6 +282,7 @@ Provider 감싸는 순서 (`app/_layout.tsx`): Settings → Profile → Sessions
 | **음성 인식 보안** (`api.py`)                          | 팀원 클로바(gRPC) 그대로 + 웹소켓 토큰 검사(`?token=`, 실패 1008), 로그엔 글자 수만, 오류 내용은 앱에 안 보냄                                           | 음성·대화는 개인정보(건강·소득)가 섞일 수 있고, 서버 내부 오류를 밖에 보여줄 필요가 없다                                                                                                      |
 | `requirements.txt`                               | `openai` 추가                                                                                                           | 원래 코드가 쓰는데 목록에 빠져 있어서 새 환경에서 서버가 안 떴다                                                                                                                     |
 | `tasks.py`                                       | 주석만                                                                                                                   | 저장 키가 `기기ID:세션ID`로 바뀐 것 표시. **5분 보관(테스트용)은 그대로** 두었다 (팀원 결정 필요)                                                                                           |
+| **상세 검색 정리** (`execute_detail_search_node`)   | 정책당 한 행으로 가져오고 사용자가 말한 순서로 정렬, 카드 데이터도 함께                                                                     | 상세 답변에도 카드를 붙이려고. 같은 정책이 여러 번 매칭돼도 한 번만 |
 
 ### 앱 (front/welfare-chat-app)
 | 무엇을 | 어떻게 | 왜 |
