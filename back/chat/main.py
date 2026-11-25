@@ -35,6 +35,7 @@ origins = [
     "https://my-react-native-web.com", # (웹으로 배포할 경우) 실제 도메인
     "http://localhost:3000",           # 웹 로컬 테스트용
     "http://localhost:8081",           # React Native(Metro) 로컬 테스트용
+    "https://welfare-android-web.onrender.com",  # 웹 시연용 정적 사이트 (Render Static Site)
 ]
 
 # !!!!!!여기 추후 수정 (근데 이건 웹 접근이라 그냥 다 금지시켜도 될듯?)
